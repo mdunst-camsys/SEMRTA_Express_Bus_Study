@@ -23,8 +23,8 @@ library(htmltools)
 library(scales)
 g <- glimpse
 
-
-setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/RTA Highway Express Bus Planning Task Order - General/CS Analysis/SEMRTA Express Bus Mapping/SEMRTA_Express_Bus_Flow_Visualization")
+setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/Documents/GitHub/SEMRTA_Express_Bus_Study")
+# rsconnect::writeManifest()
 nodes <- read.csv("data/SEMRTA_Nodes.csv") %>%
   st_as_sf(., coords=c("lon","lat"), crs=4326) %>%
   rename(node = 1)
