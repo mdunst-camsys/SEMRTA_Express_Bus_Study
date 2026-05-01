@@ -34,6 +34,7 @@ days <- c("Weekday","Saturday","Sunday")
 time_periods <- c(c("AM Peak (6-9)","Midday (9-3)","PM Peak (3-7)","Evening (7-10)","Night (10-6)"))
 communities <- c("Low-Income Only","Minority Only","Low-Income and Minority","Other","Undefined")
 locus_time <- readRDS("data/locus_time_no_short.rds")
+time_period_order <- c("AM Peak (6-9)","Midday (9-3)","PM Peak (3-7)","Evening (7-10)","Night (10-6)")
 
 # ── UI ──────────────────────────────────────────────────────────────────────
 ui <- fluidPage(
