@@ -23,7 +23,7 @@ library(htmltools)
 library(scales)
 g <- glimpse
 
-setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/Documents/GitHub/SEMRTA_Express_Bus_Study")
+# setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/Documents/GitHub/SEMRTA_Express_Bus_Study")
 # rsconnect::writeManifest()
 nodes <- read.csv("data/SEMRTA_Nodes.csv") %>%
   st_as_sf(., coords=c("lon","lat"), crs=4326) %>%
