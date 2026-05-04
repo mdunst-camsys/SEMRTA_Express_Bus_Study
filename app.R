@@ -146,12 +146,12 @@ ui <- fluidPage(
           fluidRow(
             column(6, selectInput(
               inputId  = "day_selection",
-              label    = "Select a variable",
+              label    = "Select a Day Type",
               choices  = days
             ),),
             column(6, selectInput(
               inputId  = "time_selection",
-              label    = "Select a variable",
+              label    = "Select a Time Period",
               choices  = c("All Day", time_periods)
             ))
           )
