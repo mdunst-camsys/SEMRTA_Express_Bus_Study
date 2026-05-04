@@ -25,7 +25,7 @@ g <- glimpse
 
 # setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/Documents/GitHub/SEMRTA_Express_Bus_Study")
 # rsconnect::writeManifest()
-routes <- read_sf("data/Selected_Routes.geojson") %>%
+routes <- read_sf("data/Selected_routes.geojson") %>%
   filter(OBJECTID != 47239) %>%
   st_make_valid()
 nodes <- read.csv("data/SEMRTA_Nodes.csv") %>%
