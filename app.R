@@ -35,6 +35,10 @@ time_periods <- c(c("AM Peak (6-9)","Midday (9-3)","PM Peak (3-7)","Evening (7-1
 communities <- c("Low-Income Only","Minority Only","Low-Income and Minority","Other","Undefined")
 locus_time <- readRDS("data/locus_time_no_short.rds")
 time_period_order <- c("AM Peak (6-9)","Midday (9-3)","PM Peak (3-7)","Evening (7-10)","Night (10-6)")
+time_hours <- data.frame(time_period = c(time_period_order, "All Day"),
+                         length = c(3, 6, 4, 3, 8, 24))
+
+
 
 # ── UI ──────────────────────────────────────────────────────────────────────
 ui <- fluidPage(
@@ -159,28 +163,42 @@ ui <- fluidPage(
         tabPanel("Half-Mile",
                  uiOutput("table_title"),
                  
-                 div(class = "table-wrap",
-                     div("Origins",      class = "table-row-label"),
-                     div(class = "table-inner",
-                         div("Destinations", class = "table-col-label"),
-                         DTOutput("interim_table")
-                     )
-                 )),
+                 fluidRow(
+                   column(6, plotlyOutput("half_gross_heat")),
+                   column(6, plotlyOutput("half_hourly_heat"))
+                 )
+                 
+                 # div(class = "table-wrap",
+                 #     div("Origins",      class = "table-row-label"),
+                 #     div(class = "table-inner",
+                 #         div("Destinations", class = "table-col-label"),
+                 #         DTOutput("interim_table")
+                 #     )
+                 # )
+                 ),
         tabPanel("Three Miles",
                  uiOutput("table_title_2"),
                  
-                 div(class = "table-wrap",
-                     div("Origins",      class = "table-row-label"),
-                     div(class = "table-inner",
-                         div("Destinations", class = "table-col-label"),
-                         DTOutput("interim_table_2")
-                     )
-                 ))
+                 fluidRow(
+                   column(6, plotlyOutput("three_gross_heat")),
+                   column(6, plotlyOutput("three_hourly_heat"))
+                 )
+                 
+                 # div(class = "table-wrap",
+                 #     div("Origins",      class = "table-row-label"),
+                 #     div(class = "table-inner",
+                 #         div("Destinations", class = "table-col-label"),
+                 #         DTOutput("interim_table_2")
+                 #     )
+                 # )
+                 )
       ),
       
       hr(),
       
       tabsetPanel(
+        br(),
+        
         tabPanel("Half-Mile",
                  # uiOutput("direction_title_half"),
                  fluidRow(
@@ -521,36 +539,110 @@ server <- function(input, output, session) {
     h4(paste0("Results for: ", "Half-Mile Catchment ", input$day_selection, " and ", input$time_selection))
   })
   
-  output$interim_table <- renderDT({
-    req(input$go_btn)
-    datatable(
-      small_table(),
-      rownames  = FALSE,
-      options   = list(
-        pageLength = 15,
-        scrollX    = TRUE,
-        dom        = "tip"
-      )
-    ) %>%
-      formatCurrency(columns = -1, currency = "", digits = 0)
+  # output$interim_table <- renderDT({
+  #   req(input$go_btn)
+  #   datatable(
+  #     small_table(),
+  #     rownames  = FALSE,
+  #     options   = list(
+  #       pageLength = 15,
+  #       scrollX    = TRUE,
+  #       dom        = "tip"
+  #     )
+  #   ) %>%
+  #     formatCurrency(columns = -1, currency = "", digits = 0)
+  # })
+  
+  output$half_gross_heat <- renderPlotly({
+    half_heat <- small_table() %>%
+      rename(o_node = Node) %>%
+      pivot_longer(cols = -1) %>%
+      rename(d_node = name,
+             Trips = value) %>%
+      mutate(Trips = if_else(o_node == d_node, NA, Trips)) %>%
+      ggplot(., aes(d_node, o_node, fill= Trips)) + 
+      geom_tile()+
+      scale_fill_continuous(label = comma, palette = c("lightblue","navy"), na.value = "grey80")+
+      labs(x = "Destination", y = "Origin", fill = "Gross Trips")+
+      theme_bw()
+    
+    ggplotly(half_heat) %>%
+      layout(font = list(family = "Georgia"))
+  })
+  
+  output$half_hourly_heat <- renderPlotly({
+    half_hourly_heat <- small_table() %>%
+      rename(o_node = Node) %>%
+      pivot_longer(cols = -1) %>%
+      rename(d_node = name,
+             Trips = value) %>%
+      mutate(Trips = if_else(o_node == d_node, NA, Trips)) %>%
+      mutate(time_period = input$time_selection) %>%
+      merge(., time_hours, by="time_period") %>%
+      mutate(`Trips per Hour` = round(Trips/length, 0)) %>%
+      ggplot(., aes(d_node, o_node, fill= `Trips per Hour`)) + 
+      geom_tile()+
+      scale_fill_continuous(palette = c("lightblue","navy"), na.value = "grey80")+
+      labs(x = "Destination", y = "Origin", fill = "Trips per Hour")+
+      theme_bw()
+    
+    ggplotly(half_hourly_heat) %>%
+      layout(font = list(family = "Georgia"))
   })
   
   output$table_title_2 <- renderUI({
     h4(paste0("Results for: ", "Three Mile Catchment ", input$day_selection, " and ", input$time_selection))
   })
   
-  output$interim_table_2 <- renderDT({
-    req(input$go_btn)
-    datatable(
-      large_table(),
-      rownames  = FALSE,
-      options   = list(
-        pageLength = 15,
-        scrollX    = TRUE,
-        dom        = "tip"
-      )
-    ) %>%
-      formatCurrency(columns = -1, currency = "", digits = 0)
+  # output$interim_table_2 <- renderDT({
+  #   req(input$go_btn)
+  #   datatable(
+  #     large_table(),
+  #     rownames  = FALSE,
+  #     options   = list(
+  #       pageLength = 15,
+  #       scrollX    = TRUE,
+  #       dom        = "tip"
+  #     )
+  #   ) %>%
+  #     formatCurrency(columns = -1, currency = "", digits = 0)
+  # })
+  
+  output$three_gross_heat <- renderPlotly({
+    three_heat <- large_table() %>%
+      rename(o_node = Node) %>%
+      pivot_longer(cols = -1) %>%
+      rename(d_node = name,
+             Trips = value) %>%
+      mutate(Trips = if_else(o_node == d_node, NA, Trips)) %>%
+      ggplot(., aes(d_node, o_node, fill= Trips)) + 
+      geom_tile()+
+      scale_fill_continuous(label = comma, palette = c("lightblue","navy"), na.value = "grey80")+
+      labs(x = "Destination", y = "Origin", fill = "Gross Trips")+
+      theme_bw()
+    
+    ggplotly(three_heat) %>%
+      layout(font = list(family = "Georgia"))
+  })
+  
+  output$three_hourly_heat <- renderPlotly({
+    three_hourly_heat <- large_table() %>%
+      rename(o_node = Node) %>%
+      pivot_longer(cols = -1) %>%
+      rename(d_node = name,
+             Trips = value) %>%
+      mutate(Trips = if_else(o_node == d_node, NA, Trips)) %>%
+      mutate(time_period = input$time_selection) %>%
+      merge(., time_hours, by="time_period") %>%
+      mutate(`Trips per Hour` = round(Trips/length, 0)) %>%
+      ggplot(., aes(d_node, o_node, fill= `Trips per Hour`)) + 
+      geom_tile()+
+      scale_fill_continuous(palette = c("lightblue","navy"), na.value = "grey80")+
+      labs(x = "Destination", y = "Origin", fill = "Trips per Hour")+
+      theme_bw()
+    
+    ggplotly(three_hourly_heat) %>%
+      layout(font = list(family = "Georgia"))
   })
   
   # output$direction_title_half <- renderUI({
@@ -604,7 +696,8 @@ server <- function(input, output, session) {
       labs(title= "Gross Trips by Time Period and Direction")+
       theme_bw()
     
-    ggplotly(half_gross_chart)
+    ggplotly(half_gross_chart) %>%
+      layout(font = list(family = "Georgia"))
   })
   
   output$half_hourly_chart <- renderPlotly({
@@ -622,7 +715,8 @@ server <- function(input, output, session) {
       labs(title= "Hourly Trips by Time Period and Direction")+
       theme_bw()
     
-    ggplotly(half_hourly_chart)
+    ggplotly(half_hourly_chart) %>%
+      layout(font = list(family = "Georgia"))
   })
   
   output$three_gross_chart <- renderPlotly({
@@ -638,7 +732,8 @@ server <- function(input, output, session) {
       labs(title= "Gross Trips by Time Period and Direction")+
       theme_bw()
     
-    ggplotly(three_gross_chart)
+    ggplotly(three_gross_chart) %>%
+      layout(font = list(family = "Georgia"))
   })
   
   output$three_hourly_chart <- renderPlotly({
@@ -656,7 +751,8 @@ server <- function(input, output, session) {
       labs(title= "Hourly Trips by Time Period and Direction")+
       theme_bw()
     
-    ggplotly(three_hourly_chart)
+    ggplotly(three_hourly_chart) %>%
+      layout(font = list(family = "Georgia"))
   })
 }
 
