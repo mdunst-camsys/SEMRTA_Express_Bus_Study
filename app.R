@@ -182,13 +182,21 @@ ui <- fluidPage(
       
       tabsetPanel(
         tabPanel("Half-Mile",
-                 uiOutput("direction_title_half"),
-                 
-                 DTOutput("gt_table_1")),
+                 # uiOutput("direction_title_half"),
+                 fluidRow(
+                   column(6, plotlyOutput("half_gross_chart")),
+                   column(6, plotlyOutput("half_hourly_chart"))
+                 )
+                 # DTOutput("gt_table_1")),
+        ),
         tabPanel("Three Miles",
-                 uiOutput("direction_title_three"),
-                 
-                 DTOutput("gt_table_2"))
+                 # uiOutput("direction_title_half"),
+                 fluidRow(
+                   column(6, plotlyOutput("three_gross_chart")),
+                   column(6, plotlyOutput("three_hourly_chart"))
+                 )
+                 # DTOutput("gt_table_1")),
+        )
         )
       )
     )
@@ -491,20 +499,21 @@ server <- function(input, output, session) {
     if (!go_pressed()) {
       leaflet() %>%
         addTiles() %>%
-        addPolygons(data=rta_counties, fillColor = "black", fillOpacity = 0.10, color="black", weight=0.75) %>%
-        addCircleMarkers(data=nodes, color = "black", fillColor="lightblue", popup=~label, radius=6, weight=1.5, fillOpacity = 0.8)
+        addPolygons(data=rta_counties, fillColor = "black", fillOpacity = 0.09, color="black", weight=2) %>%
+        addCircleMarkers(data=nodes, color = "black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity = 0.8)
     } else {
     leaflet() %>%
       addTiles() %>%
+      addPolygons(data=rta_counties, fillColor = "black", fillOpacity = 0.07, color="black", weight=1.5) %>%
       addPolygons(data=final_bgs_large(), fillColor = "black", fillOpacity = 0.15, color="black", weight=0.5) %>%
       addPolygons(data=final_bgs_small(), fillColor = "black", fillOpacity = 0.25, color="black", weight=0.75) %>%
-      addCircleMarkers(data=nodes, color = "black", fillColor="white", popup=~label, radius=4, weight=1.5, fillOpacity = 0.8) %>%
+      addCircleMarkers(data=nodes, color = "black", fillColor="white", label=~label, radius=4, weight=1.5, fillOpacity = 0.8) %>%
       addPolylines(data=arrange(st_drop_geometry(filtered_data()), order),
                    lng = ~st_coordinates(arrange(filtered_data(), order))[,1],
                    lat = ~st_coordinates(arrange(filtered_data(), order))[,2],
                    color = "darkblue",
                    weight = 2) %>%
-      addCircleMarkers(data=filtered_data(), color = "black", fillColor="lightblue", popup=~label, radius=6, weight=1.5, fillOpacity = 0.8)
+      addCircleMarkers(data=filtered_data(), color = "black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity = 0.85)
     }
     })
   
@@ -544,42 +553,110 @@ server <- function(input, output, session) {
       formatCurrency(columns = -1, currency = "", digits = 0)
   })
   
-  output$direction_title_half <- renderUI({
-    h4(paste0("Results for: ", "Half-Mile Catchment, ", input$day_selection))
+  # output$direction_title_half <- renderUI({
+  #   h4(paste0("Results for: ", "Half-Mile Catchment, ", input$day_selection))
+  # })
+  # 
+  # output$gt_table_1 <- renderDT({
+  #   req(input$go_btn)
+  #   datatable(
+  #     direction(),
+  #     colnames = c("Time Period","Inbound (Gross)","Outbound (Gross)","Inbound per Hour","Outbound per Hour"),
+  #     rownames  = FALSE,
+  #     options   = list(
+  #       pageLength = 15,
+  #       scrollX    = TRUE,
+  #       dom        = "tip"
+  #     )
+  #   ) %>%
+  #     formatCurrency(columns = -1, currency = "", digits = 0)
+  # })
+  # 
+  # output$direction_title_three <- renderUI({
+  #   h4(paste0("Results for: ", "Three Mile Catchment, ", input$day_selection))
+  # })
+  # 
+  # output$gt_table_2 <- renderDT({
+  #   req(input$go_btn)
+  #   datatable(
+  #     direction_large(),
+  #     colnames = c("Time Period","Inbound (Gross)","Outbound (Gross)","Inbound per Hour","Outbound per Hour"),
+  #     rownames  = FALSE,
+  #     options   = list(
+  #       pageLength = 15,
+  #       scrollX    = TRUE,
+  #       dom        = "tip"
+  #     )
+  #   ) %>%
+  #     formatCurrency(columns = -1, currency = "", digits = 0)
+  # })
+  
+  output$half_gross_chart <- renderPlotly({
+    half_gross_chart <- direction() %>%
+      select(c(time_period, Inbound, Outbound)) %>%
+      pivot_longer(cols = c(Inbound, Outbound)) %>%
+      rename(Trips = value,
+             `Time Period` = time_period,
+             Direction = name) %>%
+      ggplot(., aes(fill=Direction, y=Trips, x=`Time Period`))+
+      geom_col(position="dodge", stat="identity")+
+      scale_fill_discrete(palette = c("navy","orange"))+
+      labs(title= "Gross Trips by Time Period and Direction")+
+      theme_bw()
+    
+    ggplotly(half_gross_chart)
   })
   
-  output$gt_table_1 <- renderDT({
-    req(input$go_btn)
-    datatable(
-      direction(),
-      colnames = c("Time Period","Inbound (Gross)","Outbound (Gross)","Inbound per Hour","Outbound per Hour"),
-      rownames  = FALSE,
-      options   = list(
-        pageLength = 15,
-        scrollX    = TRUE,
-        dom        = "tip"
-      )
-    ) %>%
-      formatCurrency(columns = -1, currency = "", digits = 0)
+  output$half_hourly_chart <- renderPlotly({
+    half_hourly_chart <- direction() %>%
+      rename(`Inbound per Hour` = Inbound_hr,
+             `Outbound per Hour` = Outbound_hr) %>%
+      select(c(time_period, `Inbound per Hour`, `Outbound per Hour`)) %>%
+      pivot_longer(cols = c(`Inbound per Hour`, `Outbound per Hour`)) %>%
+      rename(`Trips per Hour` = value,
+             `Time Period` = time_period,
+             Direction = name) %>%
+      ggplot(., aes(fill=Direction, y=`Trips per Hour`, x=`Time Period`))+
+      geom_col(position="dodge", stat="identity")+
+      scale_fill_discrete(palette = c("navy","orange"))+
+      labs(title= "Hourly Trips by Time Period and Direction")+
+      theme_bw()
+    
+    ggplotly(half_hourly_chart)
   })
   
-  output$direction_title_three <- renderUI({
-    h4(paste0("Results for: ", "Three Mile Catchment, ", input$day_selection))
+  output$three_gross_chart <- renderPlotly({
+    three_gross_chart <- direction_large() %>%
+      select(c(time_period, Inbound, Outbound)) %>%
+      pivot_longer(cols = c(Inbound, Outbound)) %>%
+      rename(Trips = value,
+             `Time Period` = time_period,
+             Direction = name) %>%
+      ggplot(., aes(fill=Direction, y=Trips, x=`Time Period`))+
+      geom_col(position="dodge", stat="identity")+
+      scale_fill_discrete(palette = c("navy","orange"))+
+      labs(title= "Gross Trips by Time Period and Direction")+
+      theme_bw()
+    
+    ggplotly(three_gross_chart)
   })
   
-  output$gt_table_2 <- renderDT({
-    req(input$go_btn)
-    datatable(
-      direction_large(),
-      colnames = c("Time Period","Inbound (Gross)","Outbound (Gross)","Inbound per Hour","Outbound per Hour"),
-      rownames  = FALSE,
-      options   = list(
-        pageLength = 15,
-        scrollX    = TRUE,
-        dom        = "tip"
-      )
-    ) %>%
-      formatCurrency(columns = -1, currency = "", digits = 0)
+  output$three_hourly_chart <- renderPlotly({
+    three_hourly_chart <- direction_large() %>%
+      rename(`Inbound per Hour` = Inbound_hr,
+             `Outbound per Hour` = Outbound_hr) %>%
+    select(c(time_period, `Inbound per Hour`, `Outbound per Hour`)) %>%
+      pivot_longer(cols = c(`Inbound per Hour`, `Outbound per Hour`)) %>%
+      rename(`Trips per Hour` = value,
+             `Time Period` = time_period,
+             Direction = name) %>%
+      ggplot(., aes(fill=Direction, y=`Trips per Hour`, x=`Time Period`))+
+      geom_col(position="dodge", stat="identity")+
+      scale_fill_discrete(palette = c("navy","orange"))+
+      labs(title= "Hourly Trips by Time Period and Direction")+
+      theme_bw()
+    
+    ggplotly(three_hourly_chart)
   })
 }
 
