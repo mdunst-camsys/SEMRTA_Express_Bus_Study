@@ -25,6 +25,9 @@ g <- glimpse
 
 # setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/Documents/GitHub/SEMRTA_Express_Bus_Study")
 # rsconnect::writeManifest()
+routes <- read_sf("data/Selected_Routes.geojson") %>%
+  filter(OBJECTID != 47239) %>%
+  st_make_valid()
 nodes <- read.csv("data/SEMRTA_Nodes.csv") %>%
   st_as_sf(., coords=c("lon","lat"), crs=4326) %>%
   rename(node = 1)
@@ -518,11 +521,13 @@ server <- function(input, output, session) {
       leaflet() %>%
         addTiles() %>%
         addPolygons(data=rta_counties, fillColor = "black", fillOpacity = 0.09, color="black", weight=2) %>%
+        addPolylines(data=routes, color="navy", weight=4, label=~route_long_name) %>%
         addCircleMarkers(data=nodes, color = "black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity = 0.8)
     } else {
     leaflet() %>%
       addTiles() %>%
       addPolygons(data=rta_counties, fillColor = "black", fillOpacity = 0.07, color="black", weight=1.5) %>%
+      addPolylines(data=routes, color="navy", weight=2, label=~route_long_name) %>%
       addPolygons(data=final_bgs_large(), fillColor = "black", fillOpacity = 0.15, color="black", weight=0.5) %>%
       addPolygons(data=final_bgs_small(), fillColor = "black", fillOpacity = 0.25, color="black", weight=0.75) %>%
       addCircleMarkers(data=nodes, color = "black", fillColor="white", label=~label, radius=4, weight=1.5, fillOpacity = 0.8) %>%
@@ -530,7 +535,8 @@ server <- function(input, output, session) {
                    lng = ~st_coordinates(arrange(filtered_data(), order))[,1],
                    lat = ~st_coordinates(arrange(filtered_data(), order))[,2],
                    color = "darkblue",
-                   weight = 2) %>%
+                   weight = 4,
+                   label="Selected Route") %>%
       addCircleMarkers(data=filtered_data(), color = "black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity = 0.85)
     }
     })
