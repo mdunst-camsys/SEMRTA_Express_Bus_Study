@@ -565,7 +565,9 @@ server <- function(input, output, session) {
       pivot_longer(cols = -1) %>%
       rename(d_node = name,
              Trips = value) %>%
-      mutate(Trips = if_else(o_node == d_node, NA, Trips)) %>%
+      mutate(Trips = if_else(o_node == d_node, NA, Trips),
+             o_node = factor(o_node, levels = node_order()),
+             d_node = factor(d_node, levels = node_order())) %>%
       ggplot(., aes(d_node, o_node, fill= Trips)) + 
       geom_tile()+
       scale_fill_continuous(label = comma, palette = c("lightblue","navy"), na.value = "grey80")+
@@ -582,7 +584,9 @@ server <- function(input, output, session) {
       pivot_longer(cols = -1) %>%
       rename(d_node = name,
              Trips = value) %>%
-      mutate(Trips = if_else(o_node == d_node, NA, Trips)) %>%
+      mutate(Trips = if_else(o_node == d_node, NA, Trips),
+             o_node = factor(o_node, levels = node_order()),
+             d_node = factor(d_node, levels = node_order())) %>%
       mutate(time_period = input$time_selection) %>%
       merge(., time_hours, by="time_period") %>%
       mutate(`Trips per Hour` = round(Trips/length, 0)) %>%
@@ -620,7 +624,9 @@ server <- function(input, output, session) {
       pivot_longer(cols = -1) %>%
       rename(d_node = name,
              Trips = value) %>%
-      mutate(Trips = if_else(o_node == d_node, NA, Trips)) %>%
+      mutate(Trips = if_else(o_node == d_node, NA, Trips),
+             o_node = factor(o_node, levels = node_order()),
+             d_node = factor(d_node, levels = node_order())) %>%
       ggplot(., aes(d_node, o_node, fill= Trips)) + 
       geom_tile()+
       scale_fill_continuous(label = comma, palette = c("lightblue","navy"), na.value = "grey80")+
@@ -637,7 +643,9 @@ server <- function(input, output, session) {
       pivot_longer(cols = -1) %>%
       rename(d_node = name,
              Trips = value) %>%
-      mutate(Trips = if_else(o_node == d_node, NA, Trips)) %>%
+      mutate(Trips = if_else(o_node == d_node, NA, Trips),
+             o_node = factor(o_node, levels = node_order()),
+             d_node = factor(d_node, levels = node_order())) %>%
       mutate(time_period = input$time_selection) %>%
       merge(., time_hours, by="time_period") %>%
       mutate(`Trips per Hour` = round(Trips/length, 0)) %>%
