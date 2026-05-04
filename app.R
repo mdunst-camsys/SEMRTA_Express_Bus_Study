@@ -98,17 +98,21 @@ ui <- fluidPage(
     sidebarPanel(
       width = 3,
       
-      selectInput(
-        inputId  = "day_selection",
-        label    = "Select a variable",
-        choices  = days
-      ),
+      actionButton("go_btn", "Go", icon = icon("arrow-right")),
       
-      selectInput(
-        inputId  = "time_selection",
-        label    = "Select a variable",
-        choices  = c("All Day", time_periods)
-      ),
+      hr(),
+      
+      # selectInput(
+      #   inputId  = "day_selection",
+      #   label    = "Select a variable",
+      #   choices  = days
+      # ),
+      # 
+      # selectInput(
+      #   inputId  = "time_selection",
+      #   label    = "Select a variable",
+      #   choices  = c("All Day", time_periods)
+      # ),
       
       h4("Assign Order:"),
       
@@ -120,10 +124,6 @@ ui <- fluidPage(
       #   label    = "Select a variable",
       #   choices  = c("Half-Mile", "Three Miles")
       # ),
-      
-      
-      
-      actionButton("go_btn", "Go", icon = icon("arrow-right"))
     ),
       
     mainPanel(
@@ -133,6 +133,25 @@ ui <- fluidPage(
       
       conditionalPanel(
         condition = "input.go_btn > 0",
+        
+        hr(),
+        
+        # dropdowns side by side
+        conditionalPanel(
+          condition = "input.go_btn > 0",
+          fluidRow(
+            column(6, selectInput(
+              inputId  = "day_selection",
+              label    = "Select a variable",
+              choices  = days
+            ),),
+            column(6, selectInput(
+              inputId  = "time_selection",
+              label    = "Select a variable",
+              choices  = c("All Day", time_periods)
+            ))
+          )
+        ),
         
         hr(),
         
@@ -213,7 +232,7 @@ server <- function(input, output, session) {
     rows <- lapply(seq_len(nrow(df)), function(i) {
       input_id <- paste0("val_", make.names(df$label[i]))
       div(class = "label-row",
-          numericInput(inputId = input_id, label = NULL, value = NA, step = 1, width = "58px"),
+          numericInput(inputId = input_id, label = NULL, min = 1, value = NA, step = 1, width = "58px"),
           span(df$label[i],       class = "label-text"),
           span(df$county[i], class = "label-text")
       )
@@ -243,6 +262,17 @@ server <- function(input, output, session) {
       val <- input[[paste0("val_", make.names(lbl))]]
       if (is.null(val) || is.na(val)) NA_real_ else as.numeric(val)
     })
+    
+    # get only the entered (non-NA) values
+    entered <- value_map[!is.na(value_map)]
+    
+    validate(
+      need(
+        length(entered) == length(unique(entered)),
+        "Duplicate values entered — each label must have a unique number."
+      )
+    )
+    
     names(value_map) <- labs
     
     df <- nodes
@@ -468,6 +498,7 @@ server <- function(input, output, session) {
       addTiles() %>%
       addPolygons(data=final_bgs_large(), fillColor = "black", fillOpacity = 0.15, color="black", weight=0.5) %>%
       addPolygons(data=final_bgs_small(), fillColor = "black", fillOpacity = 0.25, color="black", weight=0.75) %>%
+      addCircleMarkers(data=nodes, color = "black", fillColor="white", popup=~label, radius=4, weight=1.5, fillOpacity = 0.8) %>%
       addPolylines(data=arrange(st_drop_geometry(filtered_data()), order),
                    lng = ~st_coordinates(arrange(filtered_data(), order))[,1],
                    lat = ~st_coordinates(arrange(filtered_data(), order))[,2],
@@ -475,7 +506,7 @@ server <- function(input, output, session) {
                    weight = 2) %>%
       addCircleMarkers(data=filtered_data(), color = "black", fillColor="lightblue", popup=~label, radius=6, weight=1.5, fillOpacity = 0.8)
     }
-  })
+    })
   
   output$table_title <- renderUI({
     h4(paste0("Results for: ", "Half-Mile Catchment ", input$day_selection, " and ", input$time_selection))
