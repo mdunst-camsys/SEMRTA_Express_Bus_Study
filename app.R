@@ -245,9 +245,8 @@ ui <- fluidPage(
       hr(),
       
       tabsetPanel(
-        br(),
-        
         tabPanel("Half-Mile",
+                 br(),
                  # uiOutput("direction_title_half"),
                  fluidRow(
                    column(6, plotlyOutput("half_gross_chart")),
@@ -256,6 +255,7 @@ ui <- fluidPage(
                  # DTOutput("gt_table_1")),
         ),
         tabPanel("Three Miles",
+                 br(),
                  # uiOutput("direction_title_half"),
                  fluidRow(
                    column(6, plotlyOutput("three_gross_chart")),
