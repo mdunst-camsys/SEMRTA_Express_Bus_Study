@@ -96,6 +96,29 @@ ui <- fluidPage(
                           margin-right: 8px; white-space: nowrap; }
     .table-col-label    { text-align: center; font-weight: bold; margin-bottom: 6px; }
     .table-inner        { flex: 1; }
+    
+    details {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 4px 10px;
+      margin-bottom: 10px;
+      background: #fff;
+    }
+    details > summary {
+      cursor: pointer;
+      font-weight: bold;
+      padding: 6px 0;
+      user-select: none;
+      color: #444;
+    }
+    details > summary:hover {
+      color: #3a7bd5;
+    }
+    details[open] > summary {
+      border-bottom: 1px solid #e0ddd6;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+    }
   "))),
   
   titlePanel(NULL),
@@ -123,15 +146,20 @@ ui <- fluidPage(
       
       h4("Assign Order:"),
       
-      h5("Upload node order via file:"),
+      h5("Upload route scenarios via file:"),
       
       fileInput("node_file", "Accepts .csv files.",
                 accept = c(".csv")),
       
+      uiOutput("node_dropdown"),
+      
       h5("Or, input node order below:"),
       
       # dynamic input rows injected here
-      uiOutput("label_inputs"),
+      tags$details(
+        tags$summary("Manually Input Node Order"),
+        uiOutput("label_inputs")
+        ),
       
       # selectInput(
       #   inputId  = "radius_selection",
@@ -156,15 +184,25 @@ ui <- fluidPage(
           fluidRow(
             column(6, selectInput(
               inputId  = "day_selection",
-              label    = "Select a Day Type",
+              label    = "Filter O-D Table by Day Type",
               choices  = days
             ),),
             column(6, selectInput(
               inputId  = "time_selection",
-              label    = "Select a Time Period",
+              label    = "Filter O-D Table by Time Period",
               choices  = c("All Day", time_periods)
             ))
           )
+        ),
+        
+        hr(),
+        
+        conditionalPanel(
+          condition = "input.go_btn > 0",
+          fluidRow(
+            column(6, downloadButton("download_od_csv", "Export All O-D Data as CSV"),),
+            column(6, downloadButton("download_directional_csv", "Export Directional Data as CSV"))
+          ),
         ),
         
         hr(),
@@ -225,7 +263,9 @@ ui <- fluidPage(
                  )
                  # DTOutput("gt_table_1")),
         )
-        )
+        ),
+      
+      br()
       )
     )
   )
@@ -290,47 +330,61 @@ server <- function(input, output, session) {
     go_pressed(TRUE)
   })
   
+  scenario_file <- reactive({
+    req(input$node_file)
+    read.csv(input$node_file$datapath,
+               header    = TRUE,
+               sep       = ",",
+               col.names = c("Scenario", "label", "order"))
+  })
+  
+  output$node_dropdown <- renderUI({
+    req(scenario_file())
+    selectInput(
+      inputId  = "selected_node_group",
+      label    = "Select route:",
+      choices  = unique(scenario_file()$Scenario)
+    )
+  })
+  
   # On Go: build new column, filter rows where value > 0
   filtered_data <- eventReactive(input$go_btn, {
-    if (is.null(input$node_file)) {
+    if (is.null(input$selected_node_group)) {
       labs <- unique_labels()
-    
-    value_map <- sapply(labs, function(lbl) {
-      val <- input[[paste0("val_", make.names(lbl))]]
-      if (is.null(val) || is.na(val)) NA_real_ else as.numeric(val)
-    })
-    
-    # get only the entered (non-NA) values
-    entered <- value_map[!is.na(value_map)]
-    
-    validate(
-      need(
-        length(entered) == length(unique(entered)),
-        "Duplicate values entered — each label must have a unique number."
+      
+      value_map <- sapply(labs, function(lbl) {
+        val <- input[[paste0("val_", make.names(lbl))]]
+        if (is.null(val) || is.na(val)) NA_real_ else as.numeric(val)
+      })
+      
+      # get only the entered (non-NA) values
+      entered <- value_map[!is.na(value_map)]
+      
+      validate(
+        need(
+          length(entered) == length(unique(entered)),
+          "Duplicate values entered — each label must have a unique number."
+        )
       )
-    )
-    
-    names(value_map) <- labs
-    
-    df <- nodes
-    df$order <- value_map[as.character(df$label)]
-    
-    # Keep only rows where assigned_value > 0
-    df <- df[!is.na(df$order) & df$order > 0, ]
-    rownames(df) <- 1:nrow(df)
-    df
+      
+      names(value_map) <- labs
+      
+      df <- nodes
+      df$order <- value_map[as.character(df$label)]
+      
+      # Keep only rows where assigned_value > 0
+      df <- df[!is.na(df$order) & df$order > 0, ]
+      rownames(df) <- 1:nrow(df)
+      df
     } else {
-      txt_file_nodes <- read.csv(input$node_file$datapath,
-               header    = TRUE,
-               sep       = ",",        # adjust if comma or space separated
-               col.names = c("label", "order")) %>%
-      arrange(order)
-    
-    txt_filtered_nodes <- merge(nodes, txt_file_nodes, by.x="label", by.y="label", all=T) %>%
-      filter(order > 0)
-    
-    filtered_data <- txt_filtered_nodes
-    filtered_data
+      txt_file_nodes <- scenario_file() %>%
+        filter(Scenario==input$selected_node_group)
+      
+      txt_filtered_nodes <- merge(nodes, txt_file_nodes, by.x="label", by.y="label", all=T) %>%
+        filter(order > 0)
+      
+      filtered_data <- txt_filtered_nodes
+      filtered_data
     }
   })
   
@@ -426,6 +480,56 @@ server <- function(input, output, session) {
       rename(d_label = label, d_node_order = order) %>%
       mutate(direction = ifelse(d_node_order > o_node_order, "Inbound","Outbound"))
   })
+  
+  export_od_table <- reactive({
+    mutate(trips_by_day_tables_small(), Distance="1/2-Mile") %>%
+    rbind(., mutate(trips_by_day_tables_large(), Distance="3 Miles")) %>%
+    select(c(o_node_order, o_label, d_node_order, d_label, day_type, time_period, Distance, daily_trips)) %>%
+    arrange(o_node_order, d_node_order, Distance)
+  })
+  
+  output$download_od_csv <- downloadHandler(
+    filename = function() {
+      paste0("od_table_", input$selected_node_group, "_", Sys.Date(), ".csv")
+    },
+    content = function(file) {
+      write.csv(export_od_table(), file, row.names = FALSE)
+    }
+  )
+  
+  export_directional_table <- reactive({
+    mutate(trips_by_day_tables_small(), Distance="1/2-Mile") %>%
+    rbind(., mutate(trips_by_day_tables_large(), Distance="3 Miles")) %>%
+    select(c(o_node_order, o_label, d_node_order, d_label, day_type, time_period, Distance, daily_trips, direction)) %>%
+    arrange(o_node_order, d_node_order, Distance) %>%
+    group_by(direction, time_period, Distance) %>%
+    summarize(trips=sum(daily_trips)) %>%
+    mutate(trips = round(trips, 0)) %>%
+    pivot_wider(names_from = direction, values_from = trips) %>%
+    mutate(
+      hours = case_when(
+        str_detect(time_period, "6-9")  ~ 3,
+        str_detect(time_period, "9-3")  ~ 6,
+        str_detect(time_period, "3-7")  ~ 4,
+        str_detect(time_period, "7-10") ~ 3,
+        str_detect(time_period, "10-6") ~ 8,
+      ),
+      Inbound_hr = round(Inbound / hours, 0),
+      Outbound_hr = round(Outbound / hours, 0)
+    ) %>%
+    select(-hours) %>%
+    mutate(time_period = factor(time_period, time_period_order)) %>%
+    arrange(Distance, time_period)
+  })
+  
+  output$download_directional_csv <- downloadHandler(
+    filename = function() {
+      paste0("directional_table_", input$selected_node_group, "_", Sys.Date(), ".csv")
+    },
+    content = function(file) {
+      write.csv(export_directional_table(), file, row.names = FALSE)
+    }
+  )
   
   df <- reactive({
     expand.grid(o_label = unique(trips_by_day_tables_small()$o_label), d_label = unique(trips_by_day_tables_small()$o_label))
