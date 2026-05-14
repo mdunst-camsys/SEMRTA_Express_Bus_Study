@@ -12,6 +12,7 @@ library(plotly)
 library(purrr)
 library(htmltools)
 library(scales)
+library(rmapshaper)
 g <- glimpse
 
 
