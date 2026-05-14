@@ -23,7 +23,7 @@ library(htmltools)
 library(scales)
 g <- glimpse
 
-setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/Documents/GitHub/SEMRTA_Express_Bus_Study")
+#setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/Documents/GitHub/SEMRTA_Express_Bus_Study")
 # rsconnect::writeManifest()
 routes <- read_sf("data/Detroit Area Transit Routes.geojson") %>%
   st_make_valid()
