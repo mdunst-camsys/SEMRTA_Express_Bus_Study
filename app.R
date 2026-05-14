@@ -23,11 +23,20 @@ library(htmltools)
 library(scales)
 g <- glimpse
 
-# setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/Documents/GitHub/SEMRTA_Express_Bus_Study")
+setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/Documents/GitHub/SEMRTA_Express_Bus_Study")
 # rsconnect::writeManifest()
-routes <- read_sf("data/Selected_routes.geojson") %>%
-  filter(OBJECTID != 47239) %>%
+routes <- read_sf("data/Detroit Area Transit Routes.geojson") %>%
   st_make_valid()
+
+SMART_routes <- filter(routes, ntd_id=="50031") %>% mutate(Agency = "SMART")
+AAATA_routes <- filter(routes, ntd_id=="50040") %>% mutate(Agency = "AAATA")
+DDOT_routes <- filter(routes, ntd_id=="50119") %>% mutate(Agency = "Detroit DOT")
+DTC_routes <- filter(routes, ntd_id=="50141") %>% mutate(Agency = "The People Mover")
+QLine_routes <- filter(routes, ntd_id=="50213") %>% mutate(Agency = "QLine Streetcar")
+UM_routes <- filter(routes, ntd_id=="50158") %>% mutate(Agency = "University of Michigan")
+
+rm(routes)
+
 nodes <- read.csv("data/SEMRTA_Nodes.csv") %>%
   st_as_sf(., coords=c("lon","lat"), crs=4326) %>%
   rename(node = 1)
@@ -641,239 +650,40 @@ server <- function(input, output, session) {
       arrange(time_period)
   })
   
-  # ib_flows <- reactive({
-  #   if (input$time_selection %in% time_periods) {
-  #     flows <- filter(trips_by_day_tables_large(),
-  #            day_type==input$day_selection & time_period==input$time_selection) %>%
-  #       ungroup() %>%
-  #       arrange(o_node, d_node) %>%
-  #       select(c(o_label, d_label, daily_trips)) %>%
-  #       mutate(daily_trips = round(daily_trips, 0)) %>%
-  #       merge(df(), ., by=c("o_label","d_label"), all=T) %>%
-  #       arrange(factor(o_label, node_order()), factor(d_label, node_order())) %>%
-  #       mutate(daily_trips = replace_na(daily_trips, 0)) %>%
-  #       pivot_wider(names_from = d_label, values_from = daily_trips) %>%
-  #       rename(Node = o_label)
-  #     
-  #     direction_1_order <- node_order()
-  #     direction_2_order <- rev(node_order())
-  #     
-  #     ib <- flows() %>%
-  #         filter(o_label != d_label) %>%
-  #         filter(match(o_label, direction_1_order()) < match(d_label, direction_1_order())) %>%
-  #         group_by(d_label) %>%
-  #         summarise(trips = sum(daily_trips, na.rm = TRUE)) %>%
-  #         mutate(direction = "Inbound",
-  #                stop_order = match(d_label, direction_1_order()))
-  #     
-  #     ib_flow <- rbind(ib(),
-  #             c(node_order()[1], NA, "Inbound",1)) %>%
-  #         arrange(stop_order) %>%
-  #         merge(., select(filtered_data(),
-  #                         c(label)), by.x="d_label", by.y="label") %>%
-  #         mutate(trips = as.numeric(trips),
-  #                latitude = st_coordinates(geometry)[,2],
-  #                longitude = st_coordinates(geometry)[,1]) %>%
-  #         mutate(weight_scaled = 2 + 9 * (trips - min(trips, na.rm = TRUE)) /
-  #                  (max(trips, na.rm = TRUE) - min(trips, na.rm = TRUE)))
-  #     
-  #     return(ib_flow)
-  #   } else {
-  #     flows <- filter(trips_by_day_tables_large(),
-  #            day_type==input$day_selection) %>%
-  #       group_by(o_node, d_node, day_type, o_label, d_label) %>%
-  #       summarize(daily_trips = sum(daily_trips)) %>%
-  #       ungroup() %>%
-  #       arrange(o_node, d_node) %>%
-  #       select(c(o_label, d_label, daily_trips)) %>%
-  #       mutate(daily_trips = round(daily_trips, 0)) %>%
-  #       merge(df(), ., by=c("o_label","d_label"), all=T) %>%
-  #       arrange(factor(o_label, node_order()), factor(d_label, node_order())) %>%
-  #       mutate(daily_trips = replace_na(daily_trips, 0)) %>%
-  #       pivot_wider(names_from = d_label, values_from = daily_trips) %>%
-  #       rename(Node = o_label)
-  #     
-  #     direction_1_order <- node_order()
-  #     direction_2_order <- rev(node_order())
-  #     
-  #     ib <- flows() %>%
-  #         filter(o_label != d_label) %>%
-  #         filter(match(o_label, direction_1_order()) < match(d_label, direction_1_order())) %>%
-  #         group_by(d_label) %>%
-  #         summarise(trips = sum(daily_trips, na.rm = TRUE)) %>%
-  #         mutate(direction = "Inbound",
-  #                stop_order = match(d_label, direction_1_order()))
-  #     
-  #     ib_flow <- rbind(ib(),
-  #             c(node_order()[1], NA, "Inbound",1)) %>%
-  #         arrange(stop_order) %>%
-  #         merge(., select(filtered_data(),
-  #                         c(label)), by.x="d_label", by.y="label") %>%
-  #         mutate(trips = as.numeric(trips),
-  #                latitude = st_coordinates(geometry)[,2],
-  #                longitude = st_coordinates(geometry)[,1]) %>%
-  #         mutate(weight_scaled = 2 + 9 * (trips - min(trips, na.rm = TRUE)) /
-  #                  (max(trips, na.rm = TRUE) - min(trips, na.rm = TRUE)))
-  #     
-  #     return(ib_flow)
-  #   }
-  #   ib_flow
-  # })
-  # 
-  # ob_flows <- reactive({
-  #   if (input$time_selection %in% time_periods) {
-  #     flows <- filter(trips_by_day_tables_large(),
-  #                     day_type==input$day_selection & time_period==input$time_selection) %>%
-  #       ungroup() %>%
-  #       arrange(o_node, d_node) %>%
-  #       select(c(o_label, d_label, daily_trips)) %>%
-  #       mutate(daily_trips = round(daily_trips, 0)) %>%
-  #       merge(df(), ., by=c("o_label","d_label"), all=T) %>%
-  #       arrange(factor(o_label, node_order()), factor(d_label, node_order())) %>%
-  #       mutate(daily_trips = replace_na(daily_trips, 0)) %>%
-  #       pivot_wider(names_from = d_label, values_from = daily_trips) %>%
-  #       rename(Node = o_label)
-  #     
-  #     direction_1_order <- node_order()
-  #     direction_2_order <- rev(node_order())
-  #     
-  #     ob <- flows() %>%
-  #         filter(o_label != d_label) %>%
-  #         filter(match(o_label, direction_2_order()) < match(d_label, direction_2_order())) %>%
-  #         group_by(d_label) %>%
-  #         summarise(trips = sum(daily_trips, na.rm = TRUE)) %>%
-  #         mutate(direction = "Outbound",
-  #                stop_order = match(d_label, direction_2_order()))
-  #     
-  #     ob_flow <- rbind(ob(),
-  #                        c(node_order()[length(node_order())], NA, "Outbound",1)) %>%
-  #         arrange(stop_order) %>%
-  #         merge(., select(filtered_data(),
-  #                         c(label)), by.x="d_label", by.y="label") %>%
-  #         mutate(trips = as.numeric(trips),
-  #                latitude = st_coordinates(geometry)[,2],
-  #                longitude = st_coordinates(geometry)[,1]) %>%
-  #         mutate(weight_scaled = 2 + 9 * (trips - min(trips, na.rm = TRUE)) /
-  #                  (max(trips, na.rm = TRUE) - min(trips, na.rm = TRUE)))
-  #     
-  #     return(ob_flow)
-  #   } else {
-  #     flows <- filter(trips_by_day_tables_large(),
-  #                     day_type==input$day_selection) %>%
-  #       group_by(o_node, d_node, day_type, o_label, d_label) %>%
-  #       summarize(daily_trips = sum(daily_trips)) %>%
-  #       ungroup() %>%
-  #       arrange(o_node, d_node) %>%
-  #       select(c(o_label, d_label, daily_trips)) %>%
-  #       mutate(daily_trips = round(daily_trips, 0)) %>%
-  #       merge(df(), ., by=c("o_label","d_label"), all=T) %>%
-  #       arrange(factor(o_label, node_order()), factor(d_label, node_order())) %>%
-  #       mutate(daily_trips = replace_na(daily_trips, 0)) %>%
-  #       pivot_wider(names_from = d_label, values_from = daily_trips) %>%
-  #       rename(Node = o_label)
-  #     
-  #     direction_1_order <- node_order()
-  #     direction_2_order <- rev(node_order())
-  #     
-  #     ob <- flows() %>%
-  #         filter(o_label != d_label) %>%
-  #         filter(match(o_label, direction_2_order()) < match(d_label, direction_2_order())) %>%
-  #         group_by(d_label) %>%
-  #         summarise(trips = sum(daily_trips, na.rm = TRUE)) %>%
-  #         mutate(direction = "Outbound",
-  #                stop_order = match(d_label, direction_2_order()))
-  #     
-  #     ob_flow <- rbind(ob(),
-  #             c(node_order()[length(node_order())], NA, "Outbound",1)) %>%
-  #         arrange(stop_order) %>%
-  #         merge(., select(filtered_data(),
-  #                         c(label)), by.x="d_label", by.y="label") %>%
-  #         mutate(trips = as.numeric(trips),
-  #                latitude = st_coordinates(geometry)[,2],
-  #                longitude = st_coordinates(geometry)[,1]) %>%
-  #         mutate(weight_scaled = 2 + 9 * (trips - min(trips, na.rm = TRUE)) /
-  #                  (max(trips, na.rm = TRUE) - min(trips, na.rm = TRUE)))
-  #     
-  #     return(ob_flow)
-  #   }
-  #   ob_flow
-  # })
-      
-  # flows <- reactive({
-  #   filter(trips_by_day_tables_small(),
-  #                 day_type==input$day_selection) %>%
-  #   group_by(o_node, d_node, day_type, o_label, d_label) %>%
-  #   summarize(daily_trips = sum(daily_trips)) %>%
-  #   ungroup() %>%
-  #   arrange(o_node, d_node) %>%
-  #   select(c(o_label, d_label, daily_trips)) %>%
-  #   mutate(daily_trips = round(daily_trips, 0)) %>%
-  #   merge(df(), ., by=c("o_label","d_label"), all=T) %>%
-  #   arrange(factor(o_label, node_order()), factor(d_label, node_order())) %>%
-  #   mutate(daily_trips = replace_na(daily_trips, 0))
-  # })
-  # 
-  # direction_1_order <- reactive({node_order()})
-  # direction_2_order <- reactive({rev(node_order())})
-  # 
-  # ib <- reactive({
-  #   flows() %>%
-  #   filter(o_label != d_label) %>%
-  #   filter(match(o_label, direction_1_order()) < match(d_label, direction_1_order())) %>%
-  #   group_by(d_label) %>%
-  #   summarise(trips = sum(daily_trips, na.rm = TRUE)) %>%
-  #   mutate(direction = "Inbound",
-  #          stop_order = match(d_label, direction_1_order()))
-  # })
-  # 
-  # ob <- reactive({
-  #   flows() %>%
-  #   filter(o_label != d_label) %>%
-  #   filter(match(o_label, direction_2_order()) < match(d_label, direction_2_order())) %>%
-  #   group_by(d_label) %>%
-  #   summarise(trips = sum(daily_trips, na.rm = TRUE)) %>%
-  #   mutate(direction = "Outbound",
-  #          stop_order = match(d_label, direction_2_order()))
-  # })
-  # 
-  # ib_flow <- reactive({
-  #   rbind(ib(),
-  #                  c(node_order()[1], NA, "Inbound",1)) %>%
-  #   arrange(stop_order) %>%
-  #   merge(., select(filtered_data(),
-  #                   c(label)), by.x="d_label", by.y="label") %>%
-  #   mutate(trips = as.numeric(trips),
-  #          latitude = st_coordinates(geometry)[,2],
-  #          longitude = st_coordinates(geometry)[,1]) %>%
-  #   mutate(weight_scaled = 2 + 9 * (trips - min(trips, na.rm = TRUE)) /
-  #            (max(trips, na.rm = TRUE) - min(trips, na.rm = TRUE)))
-  # })
-  # 
-  # ob_flow <- reactive({
-  #   rbind(ob(),
-  #                  c(node_order()[length(node_order())], NA, "Outbound",1)) %>%
-  #   arrange(stop_order) %>%
-  #   merge(., select(filtered_data(),
-  #                   c(label)), by.x="d_label", by.y="label") %>%
-  #   mutate(trips = as.numeric(trips),
-  #          latitude = st_coordinates(geometry)[,2],
-  #          longitude = st_coordinates(geometry)[,1]) %>%
-  #   mutate(weight_scaled = 2 + 9 * (trips - min(trips, na.rm = TRUE)) /
-  #            (max(trips, na.rm = TRUE) - min(trips, na.rm = TRUE)))
-  # })
-  
   output$nodes_map <- renderLeaflet({
     if (!go_pressed()) {
       leaflet() %>%
         addTiles() %>%
-        addPolygons(data=rta_counties, fillColor = "black", fillOpacity = 0.09, color="black", weight=2) %>%
-        addPolylines(data=routes, color="navy", weight=4, label=~route_long_name) %>%
-        addCircleMarkers(data=nodes, color = "black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity = 0.8)
+        addPolygons(data=rta_counties, fillColor = "black", fillOpacity = 0.09, color="black", weight=2, group = "RTA Counties") %>%
+        addPolylines(data=SMART_routes, color="#dc2d2c", weight=3, label=~paste0("SMART ", route_long_name), group = "SMART Routes") %>%
+        addPolylines(data=AAATA_routes, color="#0e2349", weight=3, label=~paste0("TheRide ", route_long_name), group = "Ann Arbor Area Routes") %>%
+        addPolylines(data=DDOT_routes, color="darkgreen", weight=3, label=~paste0("DDOT ", route_long_name), group = "Detroit Area Routes") %>%
+        addPolylines(data=DTC_routes, color="gold", weight=3, label="Detroit People Mover", group = "Detroit Area Routes") %>%
+        addPolylines(data=QLine_routes, color="#d21f24", weight=3, label="QLine", group = "Detroit Area Routes") %>%
+        addPolylines(data=UM_routes, color="#3d5986", weight=3, label=~paste0("U.Mich. ", route_long_name), group = "Ann Arbor Area Routes") %>%
+        addCircleMarkers(data=nodes, color = "black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity = 0.8, group = "Nodes") %>%
+        addLayersControl(overlayGroups = c("Nodes", "RTA Counties", "SMART Routes", "Detroit Area Routes", "Ann Arbor Area Routes"),
+                         options = layersControlOptions(collapsed=T)) %>%
+        addLegend(
+          position = "bottomleft",
+          colors = c("black", "#dc2d2c", "#0e2349", "darkgreen", "gold", "#d21f24", "#3d5986", "lightblue"),
+          labels = c("RTA Counties", "SMART", "TheRide", "DDOT", "Detroit People Mover", "QLine", "U.Mich.", "Nodes"),
+          title = "Layers"
+        )
     } else {
+      bbox <- reactive({
+        st_bbox(filtered_data())
+      })
+      
       map <- leaflet() %>%
         addTiles() %>%
         addPolygons(data=rta_counties, fillColor = "black", fillOpacity = 0.07, color="black", weight=1.5) %>%
-        addPolylines(data=routes, color="navy", weight=2, label=~route_long_name, group="Existing Routes") %>%
+        addPolylines(data=SMART_routes, color="#dc2d2c", opacity = 0.5, weight=3, label=~paste0("SMART ", route_long_name), group = "Existing Routes") %>%
+        addPolylines(data=AAATA_routes, color="#0e2349", opacity = 0.5, weight=3, label=~paste0("TheRide ", route_long_name), group = "Existing Routes") %>%
+        addPolylines(data=DDOT_routes, color="darkgreen", opacity = 0.5, weight=3, label=~paste0("DDOT ", route_long_name), group = "Existing Routes") %>%
+        addPolylines(data=DTC_routes, color="gold", opacity = 0.5, weight=3, label="Detroit People Mover", group = "Existing Routes") %>%
+        addPolylines(data=QLine_routes, color="#d21f24", opacity = 0.5, weight=3, label="QLine", group = "Existing Routes") %>%
+        addPolylines(data=UM_routes, color="#3d5986", opacity = 0.5, weight=3, label=~paste0("U.Mich. ", route_long_name), group = "Existing Routes") %>%
         addPolygons(data=final_bgs_large(), fillColor = "black", fillOpacity = 0.15, color="black", weight=0.5, group="Catchment Block Groups") %>%
         addPolygons(data=final_bgs_small(), fillColor = "black", fillOpacity = 0.25, color="black", weight=0.75, group = "Catchment Block Groups") %>%
         addCircleMarkers(data=nodes, color = "black", fillColor="white", label=~label, radius=4, weight=1.5, fillOpacity = 0.8, group = "Unselected Nodes")
@@ -884,30 +694,21 @@ server <- function(input, output, session) {
                      lat = ~st_coordinates(arrange(filtered_data(), order))[,2],
                      color = "darkblue",
                      weight = 4,
-                     label="Selected Route") %>%
-        addCircleMarkers(data=filtered_data(), color = "black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity = 0.85) %>%
-        addLayersControl(overlayGroups = c("Existing Routes", "Selected Nodes", "Unselected Nodes", "Catchment Block Groups"),
-        options = layersControlOptions(collapsed=T))
+                     label="Selected Route",
+                     group = "Selected Route") %>%
+        addCircleMarkers(data=filtered_data(), color = "black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity = 0.85, group = "Selected Nodes") %>%
+        addLayersControl(overlayGroups = c("Existing Routes", "Selected Nodes", "Selected Route", "Unselected Nodes", "Catchment Block Groups"),
+        options = layersControlOptions(collapsed=T)) %>%
+        fitBounds(
+          lng1 = bbox()[["xmin"]], lat1 = bbox()[["ymin"]],
+          lng2 = bbox()[["xmax"]], lat2 = bbox()[["ymax"]]
+        )
     }
     })
   
   output$table_title <- renderUI({
     h4(paste0("Results for: ", "Half-Mile Catchment ", input$day_selection, " and ", input$time_selection))
   })
-  
-  # output$interim_table <- renderDT({
-  #   req(input$go_btn)
-  #   datatable(
-  #     small_table(),
-  #     rownames  = FALSE,
-  #     options   = list(
-  #       pageLength = 15,
-  #       scrollX    = TRUE,
-  #       dom        = "tip"
-  #     )
-  #   ) %>%
-  #     formatCurrency(columns = -1, currency = "", digits = 0)
-  # })
   
   output$half_gross_heat <- renderPlotly({
     half_heat <- small_table() %>%
@@ -954,20 +755,6 @@ server <- function(input, output, session) {
     h4(paste0("Results for: ", "Three Mile Catchment ", input$day_selection, " and ", input$time_selection))
   })
   
-  # output$interim_table_2 <- renderDT({
-  #   req(input$go_btn)
-  #   datatable(
-  #     large_table(),
-  #     rownames  = FALSE,
-  #     options   = list(
-  #       pageLength = 15,
-  #       scrollX    = TRUE,
-  #       dom        = "tip"
-  #     )
-  #   ) %>%
-  #     formatCurrency(columns = -1, currency = "", digits = 0)
-  # })
-  
   output$three_gross_heat <- renderPlotly({
     three_heat <- large_table() %>%
       rename(o_node = Node) %>%
@@ -1008,44 +795,6 @@ server <- function(input, output, session) {
     ggplotly(three_hourly_heat) %>%
       layout(font = list(family = "Georgia"))
   })
-  
-  # output$direction_title_half <- renderUI({
-  #   h4(paste0("Results for: ", "Half-Mile Catchment, ", input$day_selection))
-  # })
-  # 
-  # output$gt_table_1 <- renderDT({
-  #   req(input$go_btn)
-  #   datatable(
-  #     direction(),
-  #     colnames = c("Time Period","Inbound (Gross)","Outbound (Gross)","Inbound per Hour","Outbound per Hour"),
-  #     rownames  = FALSE,
-  #     options   = list(
-  #       pageLength = 15,
-  #       scrollX    = TRUE,
-  #       dom        = "tip"
-  #     )
-  #   ) %>%
-  #     formatCurrency(columns = -1, currency = "", digits = 0)
-  # })
-  # 
-  # output$direction_title_three <- renderUI({
-  #   h4(paste0("Results for: ", "Three Mile Catchment, ", input$day_selection))
-  # })
-  # 
-  # output$gt_table_2 <- renderDT({
-  #   req(input$go_btn)
-  #   datatable(
-  #     direction_large(),
-  #     colnames = c("Time Period","Inbound (Gross)","Outbound (Gross)","Inbound per Hour","Outbound per Hour"),
-  #     rownames  = FALSE,
-  #     options   = list(
-  #       pageLength = 15,
-  #       scrollX    = TRUE,
-  #       dom        = "tip"
-  #     )
-  #   ) %>%
-  #     formatCurrency(columns = -1, currency = "", digits = 0)
-  # })
   
   output$half_gross_chart <- renderPlotly({
     half_gross_chart <- direction() %>%
