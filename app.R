@@ -12,7 +12,6 @@ library(plotly)
 library(purrr)
 library(htmltools)
 library(scales)
-library(rmapshaper)
 g <- glimpse
 
 
@@ -22,17 +21,17 @@ routes <- read_sf("data/Detroit Area Transit Routes.geojson") %>%
   st_make_valid()
 
 SMART_routes <- filter(routes, ntd_id=="50031") %>% mutate(Agency = "SMART") %>%
-  rmapshaper::ms_simplify(., keep = 0.05)
+  st_simplify(., dTolerance = 50)
 AAATA_routes <- filter(routes, ntd_id=="50040") %>% mutate(Agency = "AAATA") %>%
-  rmapshaper::ms_simplify(., keep = 0.05)
+  st_simplify(., dTolerance = 50)
 DDOT_routes <- filter(routes, ntd_id=="50119") %>% mutate(Agency = "Detroit DOT") %>%
-  rmapshaper::ms_simplify(., keep = 0.05)
+  st_simplify(., dTolerance = 50)
 DTC_routes <- filter(routes, ntd_id=="50141") %>% mutate(Agency = "The People Mover") %>%
-  rmapshaper::ms_simplify(., keep = 0.05)
+  st_simplify(., dTolerance = 50)
 QLine_routes <- filter(routes, ntd_id=="50213") %>% mutate(Agency = "QLine Streetcar") %>%
-  rmapshaper::ms_simplify(., keep = 0.05)
+  st_simplify(., dTolerance = 50)
 UM_routes <- filter(routes, ntd_id=="50158") %>% mutate(Agency = "University of Michigan") %>%
-  rmapshaper::ms_simplify(., keep = 0.05)
+  st_simplify(., dTolerance = 50)
 
 rm(routes)
 
