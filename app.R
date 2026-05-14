@@ -4,36 +4,33 @@ library(DT)
 library(readxl)
 library(leaflet)
 library(openxlsx)
-library(dplyr)
 library(tidyverse)
 library(stringi)
 library(tigris)
 library(sf)
-library(mapview)
-library(igraph)
 library(plotly)
 library(purrr)
-library(shiny)
-library(knitr)
-library(kableExtra)
-library(gt)
-library(gtExtras)
-library(reactable)
 library(htmltools)
 library(scales)
 g <- glimpse
 
-setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/Documents/GitHub/SEMRTA_Express_Bus_Study")
+# setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/Documents/GitHub/SEMRTA_Express_Bus_Study")
 # rsconnect::writeManifest()
 routes <- read_sf("data/Detroit Area Transit Routes.geojson") %>%
   st_make_valid()
 
-SMART_routes <- filter(routes, ntd_id=="50031") %>% mutate(Agency = "SMART")
-AAATA_routes <- filter(routes, ntd_id=="50040") %>% mutate(Agency = "AAATA")
-DDOT_routes <- filter(routes, ntd_id=="50119") %>% mutate(Agency = "Detroit DOT")
-DTC_routes <- filter(routes, ntd_id=="50141") %>% mutate(Agency = "The People Mover")
-QLine_routes <- filter(routes, ntd_id=="50213") %>% mutate(Agency = "QLine Streetcar")
-UM_routes <- filter(routes, ntd_id=="50158") %>% mutate(Agency = "University of Michigan")
+SMART_routes <- filter(routes, ntd_id=="50031") %>% mutate(Agency = "SMART") %>%
+  rmapshaper::ms_simplify(., keep = 0.05)
+AAATA_routes <- filter(routes, ntd_id=="50040") %>% mutate(Agency = "AAATA") %>%
+  rmapshaper::ms_simplify(., keep = 0.05)
+DDOT_routes <- filter(routes, ntd_id=="50119") %>% mutate(Agency = "Detroit DOT") %>%
+  rmapshaper::ms_simplify(., keep = 0.05)
+DTC_routes <- filter(routes, ntd_id=="50141") %>% mutate(Agency = "The People Mover") %>%
+  rmapshaper::ms_simplify(., keep = 0.05)
+QLine_routes <- filter(routes, ntd_id=="50213") %>% mutate(Agency = "QLine Streetcar") %>%
+  rmapshaper::ms_simplify(., keep = 0.05)
+UM_routes <- filter(routes, ntd_id=="50158") %>% mutate(Agency = "University of Michigan") %>%
+  rmapshaper::ms_simplify(., keep = 0.05)
 
 rm(routes)
 
@@ -455,7 +452,8 @@ server <- function(input, output, session) {
     mutate(buffer = "Half-Mile")
   })
   
-  trips_by_day_tables_small <- reactive({
+  trips_by_day_tables_small <-bindEvent(
+    reactive({
     filtered_time_small() %>%
     group_by(o_node, d_node, day_type, time_period) %>%
     filter(o_node != d_node) %>%
@@ -465,7 +463,8 @@ server <- function(input, output, session) {
     merge(., st_drop_geometry(filtered_data()), by.x="d_node", by.y="node") %>%
     rename(d_label = label, d_node_order = order) %>%
     mutate(direction = ifelse(d_node_order > o_node_order, "Inbound","Outbound"))
-  })
+  }),
+  input$go_btn)
   
   filtered_time_large <- reactive({
     filter(locus_time,
@@ -478,7 +477,8 @@ server <- function(input, output, session) {
       mutate(buffer = "Three Miles")
   })
   
-  trips_by_day_tables_large <- reactive({
+  trips_by_day_tables_large <- bindEvent(
+    reactive({
     filtered_time_large() %>%
       group_by(o_node, d_node, day_type, time_period) %>%
       filter(o_node != d_node) %>%
@@ -488,7 +488,8 @@ server <- function(input, output, session) {
       merge(., st_drop_geometry(filtered_data()), by.x="d_node", by.y="node") %>%
       rename(d_label = label, d_node_order = order) %>%
       mutate(direction = ifelse(d_node_order > o_node_order, "Inbound","Outbound"))
-  })
+  }),
+  input$go_btn)
   
   export_od_table <- reactive({
     mutate(trips_by_day_tables_small(), Distance="1/2-Mile") %>%
@@ -651,60 +652,47 @@ server <- function(input, output, session) {
   })
   
   output$nodes_map <- renderLeaflet({
-    if (!go_pressed()) {
-      leaflet() %>%
-        addTiles() %>%
-        addPolygons(data=rta_counties, fillColor = "black", fillOpacity = 0.09, color="black", weight=2, group = "RTA Counties") %>%
-        addPolylines(data=SMART_routes, color="#dc2d2c", weight=3, label=~paste0("SMART ", route_long_name), group = "SMART Routes") %>%
-        addPolylines(data=AAATA_routes, color="#0e2349", weight=3, label=~paste0("TheRide ", route_long_name), group = "Ann Arbor Area Routes") %>%
-        addPolylines(data=DDOT_routes, color="darkgreen", weight=3, label=~paste0("DDOT ", route_long_name), group = "Detroit Area Routes") %>%
-        addPolylines(data=DTC_routes, color="gold", weight=3, label="Detroit People Mover", group = "Detroit Area Routes") %>%
-        addPolylines(data=QLine_routes, color="#d21f24", weight=3, label="QLine", group = "Detroit Area Routes") %>%
-        addPolylines(data=UM_routes, color="#3d5986", weight=3, label=~paste0("U.Mich. ", route_long_name), group = "Ann Arbor Area Routes") %>%
-        addCircleMarkers(data=nodes, color = "black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity = 0.8, group = "Nodes") %>%
-        addLayersControl(overlayGroups = c("Nodes", "RTA Counties", "SMART Routes", "Detroit Area Routes", "Ann Arbor Area Routes"),
-                         options = layersControlOptions(collapsed=T)) %>%
-        addLegend(
-          position = "bottomleft",
-          colors = c("black", "#dc2d2c", "#0e2349", "darkgreen", "gold", "#d21f24", "#3d5986", "lightblue"),
-          labels = c("RTA Counties", "SMART", "TheRide", "DDOT", "Detroit People Mover", "QLine", "U.Mich.", "Nodes"),
-          title = "Layers"
-        )
-    } else {
-      bbox <- reactive({
-        st_bbox(filtered_data())
-      })
-      
-      map <- leaflet() %>%
-        addTiles() %>%
-        addPolygons(data=rta_counties, fillColor = "black", fillOpacity = 0.07, color="black", weight=1.5) %>%
-        addPolylines(data=SMART_routes, color="#dc2d2c", opacity = 0.5, weight=3, label=~paste0("SMART ", route_long_name), group = "Existing Routes") %>%
-        addPolylines(data=AAATA_routes, color="#0e2349", opacity = 0.5, weight=3, label=~paste0("TheRide ", route_long_name), group = "Existing Routes") %>%
-        addPolylines(data=DDOT_routes, color="darkgreen", opacity = 0.5, weight=3, label=~paste0("DDOT ", route_long_name), group = "Existing Routes") %>%
-        addPolylines(data=DTC_routes, color="gold", opacity = 0.5, weight=3, label="Detroit People Mover", group = "Existing Routes") %>%
-        addPolylines(data=QLine_routes, color="#d21f24", opacity = 0.5, weight=3, label="QLine", group = "Existing Routes") %>%
-        addPolylines(data=UM_routes, color="#3d5986", opacity = 0.5, weight=3, label=~paste0("U.Mich. ", route_long_name), group = "Existing Routes") %>%
-        addPolygons(data=final_bgs_large(), fillColor = "black", fillOpacity = 0.15, color="black", weight=0.5, group="Catchment Block Groups") %>%
-        addPolygons(data=final_bgs_small(), fillColor = "black", fillOpacity = 0.25, color="black", weight=0.75, group = "Catchment Block Groups") %>%
-        addCircleMarkers(data=nodes, color = "black", fillColor="white", label=~label, radius=4, weight=1.5, fillOpacity = 0.8, group = "Unselected Nodes")
-      
-      map %>%
-        addPolylines(data=arrange(st_drop_geometry(filtered_data()), order),
-                     lng = ~st_coordinates(arrange(filtered_data(), order))[,1],
-                     lat = ~st_coordinates(arrange(filtered_data(), order))[,2],
-                     color = "darkblue",
-                     weight = 4,
-                     label="Selected Route",
-                     group = "Selected Route") %>%
-        addCircleMarkers(data=filtered_data(), color = "black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity = 0.85, group = "Selected Nodes") %>%
-        addLayersControl(overlayGroups = c("Existing Routes", "Selected Nodes", "Selected Route", "Unselected Nodes", "Catchment Block Groups"),
-        options = layersControlOptions(collapsed=T)) %>%
-        fitBounds(
-          lng1 = bbox()[["xmin"]], lat1 = bbox()[["ymin"]],
-          lng2 = bbox()[["xmax"]], lat2 = bbox()[["ymax"]]
-        )
-    }
-    })
+    leaflet() %>%
+      addTiles() %>%
+      addPolygons(data=rta_counties, fillColor="black", fillOpacity=0.09, color="black", weight=2, group="RTA Counties") %>%
+      addPolylines(data=SMART_routes, color="#dc2d2c", weight=3, label=~paste0("SMART ", route_long_name), group="SMART Routes") %>%
+      addPolylines(data=AAATA_routes, color="#0e2349", weight=3, label=~paste0("TheRide ", route_long_name), group="Ann Arbor Area Routes") %>%
+      addPolylines(data=DDOT_routes, color="darkgreen", weight=3, label=~paste0("DDOT ", route_long_name), group="Detroit Area Routes") %>%
+      addPolylines(data=DTC_routes, color="gold", weight=3, label="Detroit People Mover", group="Detroit Area Routes") %>%
+      addPolylines(data=QLine_routes, color="#d21f24", weight=3, label="QLine", group="Detroit Area Routes") %>%
+      addPolylines(data=UM_routes, color="#3d5986", weight=3, label=~paste0("U.Mich. ", route_long_name), group="Ann Arbor Area Routes") %>%
+      addCircleMarkers(data=nodes, color="black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity=0.8, group="Nodes") %>%
+      addLayersControl(overlayGroups=c("Nodes", "RTA Counties", "SMART Routes", "Detroit Area Routes", "Ann Arbor Area Routes"),
+                       options=layersControlOptions(collapsed=T)) %>%
+      addLegend(
+        position="bottomleft",
+        colors=c("black", "#dc2d2c", "#0e2349", "darkgreen", "gold", "#d21f24", "#3d5986", "lightblue"),
+        labels=c("RTA Counties", "SMART", "TheRide", "DDOT", "Detroit People Mover", "QLine", "U.Mich.", "Nodes"),
+        title="Layers"
+      )
+  })
+  
+  observeEvent(input$go_btn, {
+    req(filtered_data(), final_bgs_small(), final_bgs_large())
+    
+    bbox <- st_bbox(filtered_data())
+    
+    coords <- st_coordinates(arrange(filtered_data(), order))
+    
+    leafletProxy("nodes_map") %>%
+      clearGroup("Selected Nodes") %>%
+      clearGroup("Selected Route") %>%
+      clearGroup("Unselected Nodes") %>%
+      clearGroup("Catchment Block Groups") %>%
+      addPolygons(data=final_bgs_large(), fillColor="black", fillOpacity=0.15, color="black", weight=0.5, group="Catchment Block Groups") %>%
+      addPolygons(data=final_bgs_small(), fillColor="black", fillOpacity=0.25, color="black", weight=0.75, group="Catchment Block Groups") %>%
+      addCircleMarkers(data=nodes, color="black", fillColor="white", label=~label, radius=4, weight=1.5, fillOpacity=0.8, group="Unselected Nodes") %>%
+      addPolylines(lng=coords[,1], lat=coords[,2], color="darkblue", weight=4, label="Selected Route", group="Selected Route") %>%
+      addCircleMarkers(data=filtered_data(), color="black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity=0.85, group="Selected Nodes") %>%
+      addLayersControl(overlayGroups=c("Existing Routes", "Selected Nodes", "Selected Route", "Unselected Nodes", "Catchment Block Groups"),
+                       options=layersControlOptions(collapsed=T)) %>%
+      fitBounds(lng1=bbox[["xmin"]], lat1=bbox[["ymin"]], lng2=bbox[["xmax"]], lat2=bbox[["ymax"]])
+  })
   
   output$table_title <- renderUI({
     h4(paste0("Results for: ", "Half-Mile Catchment ", input$day_selection, " and ", input$time_selection))
