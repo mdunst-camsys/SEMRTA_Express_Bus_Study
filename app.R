@@ -690,7 +690,7 @@ server <- function(input, output, session) {
       addCircleMarkers(data=nodes, color="black", fillColor="white", label=~label, radius=4, weight=1.5, fillOpacity=0.8, group="Unselected Nodes") %>%
       addPolylines(lng=coords[,1], lat=coords[,2], color="darkblue", weight=4, label="Selected Route", group="Selected Route") %>%
       addCircleMarkers(data=filtered_data(), color="black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity=0.85, group="Selected Nodes") %>%
-      addLayersControl(overlayGroups=c("Existing Routes", "Selected Nodes", "Selected Route", "Unselected Nodes", "Catchment Block Groups"),
+      addLayersControl(overlayGroups=c("Selected Nodes", "Selected Route", "Unselected Nodes", "Catchment Block Groups", "SMART Routes", "Detroit Area Routes", "Ann Arbor Area Routes"),
                        options=layersControlOptions(collapsed=T)) %>%
       fitBounds(lng1=bbox[["xmin"]], lat1=bbox[["ymin"]], lng2=bbox[["xmax"]], lat2=bbox[["ymax"]])
   })
