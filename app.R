@@ -15,7 +15,7 @@ library(scales)
 g <- glimpse
 
 
-#setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/Documents/GitHub/SEMRTA_Express_Bus_Study")
+# setwd("C:/Users/mdunst/OneDrive - Cambridge Systematics/Documents/GitHub/SEMRTA_Express_Bus_Study")
 # rsconnect::writeManifest()
 routes <- read_sf("data/Detroit Area Transit Routes.geojson") %>%
   st_make_valid()
@@ -513,7 +513,7 @@ server <- function(input, output, session) {
     rbind(., mutate(trips_by_day_tables_large(), Distance="3 Miles")) %>%
     select(c(o_node_order, o_label, d_node_order, d_label, day_type, time_period, Distance, daily_trips, direction)) %>%
     arrange(o_node_order, d_node_order, Distance) %>%
-    group_by(direction, time_period, Distance) %>%
+    group_by(direction, day_type, time_period, Distance) %>%
     summarize(trips=sum(daily_trips)) %>%
     mutate(trips = round(trips, 0)) %>%
     pivot_wider(names_from = direction, values_from = trips) %>%
