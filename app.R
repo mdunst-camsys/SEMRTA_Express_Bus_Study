@@ -274,26 +274,26 @@ ui <- fluidPage(
       
       hr(),
       
-      tabsetPanel(
-        tabPanel("Half-Mile",
-                 br(),
-                 # uiOutput("direction_title_half"),
-                 fluidRow(
-                   column(6, plotlyOutput("inbound_bandwidth_chart_small")),
-                   column(6, plotlyOutput("outbound_bandwidth_chart_small"))
-                 )
-                 # DTOutput("gt_table_1")),
-        ),
-        tabPanel("Three Miles",
-                 br(),
-                 # uiOutput("direction_title_half"),
-                 fluidRow(
-                   column(6, plotlyOutput("inbound_bandwidth_chart_large")),
-                   column(6, plotlyOutput("outbound_bandwidth_chart_large"))
-                 )
-                 # DTOutput("gt_table_1")),
-        )
-      ),
+      # tabsetPanel(
+      #   tabPanel("Half-Mile",
+      #            br(),
+      #            # uiOutput("direction_title_half"),
+      #            fluidRow(
+      #              column(6, plotlyOutput("inbound_bandwidth_chart_small")),
+      #              column(6, plotlyOutput("outbound_bandwidth_chart_small"))
+      #            )
+      #            # DTOutput("gt_table_1")),
+      #   ),
+      #   tabPanel("Three Miles",
+      #            br(),
+      #            # uiOutput("direction_title_half"),
+      #            fluidRow(
+      #              column(6, plotlyOutput("inbound_bandwidth_chart_large")),
+      #              column(6, plotlyOutput("outbound_bandwidth_chart_large"))
+      #            )
+      #            # DTOutput("gt_table_1")),
+      #   )
+      # ),
       
       br()
       )
@@ -522,28 +522,28 @@ server <- function(input, output, session) {
     arrange(o_node_order, d_node_order, Distance)
   })
   
-  # filtered_data <- reactive({
-  #   origins <- export_od_table() %>%
-  #     filter(day_type=="Weekday" & Distance=="3 Miles") %>%
-  #     group_by(o_label) %>%
-  #     summarize(daily_trips = sum(daily_trips, na.rm=T)) %>%
-  #     rename(node_label = o_label)
-  #   
-  #   destinations <- export_od_table() %>%
-  #     filter(day_type=="Weekday" & Distance=="3 Miles") %>%
-  #     group_by(d_label) %>%
-  #     summarize(daily_trips = sum(daily_trips, na.rm=T)) %>%
-  #     rename(node_label = d_label)
-  #   
-  #   total_trips <- rbind(origins, destinations) %>%
-  #     group_by(node_label) %>%
-  #     summarize(daily_trips = sum(daily_trips, na.rm=T))
-  #   
-  #   filtered_data <- filtered_data() %>%
-  #     merge(., total_trips(), by.x="label", by.y="node_label")
-  #   
-  #   filtered_data
-  # })
+  filtered_data_merged <- reactive({
+    origins <- export_od_table() %>%
+      filter(day_type=="Weekday" & Distance=="3 Miles") %>%
+      group_by(o_label) %>%
+      summarize(daily_trips = sum(daily_trips, na.rm=T)) %>%
+      rename(node_label = o_label)
+
+    destinations <- export_od_table() %>%
+      filter(day_type=="Weekday" & Distance=="3 Miles") %>%
+      group_by(d_label) %>%
+      summarize(daily_trips = sum(daily_trips, na.rm=T)) %>%
+      rename(node_label = d_label)
+
+    total_trips <- rbind(origins, destinations) %>%
+      group_by(node_label) %>%
+      summarize(daily_trips = sum(daily_trips, na.rm=T))
+
+    filtered_data <- filtered_data() %>%
+      merge(., total_trips, by.x="label", by.y="node_label")
+
+    filtered_data
+  })
   
   output$download_od_csv <- downloadHandler(
     filename = function() {
@@ -735,8 +735,9 @@ server <- function(input, output, session) {
       addPolygons(data=final_bgs_small(), fillColor="black", fillOpacity=0.25, color="black", weight=0.75, group="Catchment Block Groups") %>%
       addCircleMarkers(data=nodes, color="black", fillColor="white", label=~label, radius=4, weight=1.5, fillOpacity=0.8, group="Unselected Nodes") %>%
       addPolylines(lng=coords[,1], lat=coords[,2], color="darkblue", weight=4, label="Selected Route", group="Selected Route") %>%
-      addCircleMarkers(data=filtered_data(), color="black", fillColor="lightblue", label=~label, radius=6, weight=1.5, fillOpacity=0.85, group="Selected Nodes") %>%
-      addLayersControl(overlayGroups=c("Selected Nodes", "Selected Route", "Unselected Nodes", "Catchment Block Groups", "SMART Routes", "Detroit Area Routes", "Ann Arbor Area Routes"),
+      addCircleMarkers(data=filtered_data_merged(), color="black", fillColor="lightblue", label = ~paste0(label, " — Trip Origins/Destinations (Three Miles, Weekday): ", 
+                                                                                                          scales::comma(round(daily_trips, 0))), radius=~sqrt(daily_trips) * 0.25, weight=1.5, fillOpacity=0.85, group="Nodes (Three Mile Travel Market)") %>%
+      addLayersControl(overlayGroups=c("Nodes (Three Mile Travel Market)", "Selected Route", "Unselected Nodes", "Catchment Block Groups", "SMART Routes", "Detroit Area Routes", "Ann Arbor Area Routes"),
                        options=layersControlOptions(collapsed=T)) %>%
       fitBounds(lng1=bbox[["xmin"]], lat1=bbox[["ymin"]], lng2=bbox[["xmax"]], lat2=bbox[["ymax"]])
   })
@@ -903,349 +904,349 @@ server <- function(input, output, session) {
         layout(font = list(family = "Georgia"))
     })
     
-  output$inbound_bandwidth_chart_small <- renderPlotly({
-    inbound_bandwidth_data_small <- trips_by_day_tables_small() %>%
-      filter(direction=="Inbound") %>%
-      arrange(o_node_order, d_node_order) %>%
-      select(c(o_node_order, o_label, d_node_order, d_label, day_type, time_period, daily_trips))
-    
-    inbound_bandwidth_small <- inbound_bandwidth_data_small %>%
-      rowwise() %>%
-      mutate(
-        link_start_order = list(seq(o_node_order, d_node_order - 1))
-      ) %>%
-      unnest(link_start_order) %>%
-      mutate(
-        link_end_order = link_start_order + 1
-      ) %>%
-      group_by(link_start_order, link_end_order, day_type, time_period) %>%
-      summarise(Trips = round(sum(daily_trips),0), .groups = "drop")
-    
-    # Build a lookup from your data
-    node_lookup <- inbound_bandwidth_data_small %>%
-      select(node_order = o_node_order, label = o_label) %>%
-      bind_rows(inbound_bandwidth_data_small %>% select(node_order = d_node_order, label = d_label)) %>%
-      distinct()
-    
-    # Join labels onto the bandwidth result
-    inbound_bandwidth_small <- inbound_bandwidth_small %>%
-      left_join(node_lookup, by = c("link_start_order" = "node_order")) %>%
-      rename(start_label = label) %>%
-      left_join(node_lookup, by = c("link_end_order" = "node_order")) %>%
-      rename(end_label = label) %>%
-      select(link_start_order, start_label, link_end_order, end_label, 
-             day_type, time_period, Trips)
-    
-    # plot_data_small <- inbound_bandwidth_small %>%
-    #   filter(day_type==input$day_selection & time_period==input$time_selection)
-    
-    if (is.null(input$time_selection) || length(input$time_selection) == 0 || input$time_selection == "All Day") {
-      plot_data_small <- inbound_bandwidth_small %>%
-        filter(day_type == input$day_selection) %>%
-        group_by(link_start_order, start_label, link_end_order, end_label, day_type) %>%
-        summarise(Trips = sum(Trips), .groups = "drop")
-    } else {
-      plot_data_small <- inbound_bandwidth_small %>%
-        filter(day_type == input$day_selection & time_period == input$time_selection)
-    }
-    
-    rect_data <- plot_data_small %>%
-      mutate(
-        seg_xmin = link_start_order,
-        seg_xmax = link_end_order,
-        seg_ymin = -Trips / 2,
-        seg_ymax = Trips / 2
-      )
-    
-    # Build node label lookup for x axis
-    node_labels <- inbound_bandwidth_small %>%
-      select(node_order = link_start_order, label = start_label) %>%
-      bind_rows(inbound_bandwidth_small %>% select(node_order = link_end_order, label = end_label)) %>%
-      distinct()
-    
-    inbound_bandwidth_small_plot <- ggplot(rect_data) +
-      geom_rect(aes(xmin = seg_xmin, xmax = seg_xmax, 
-                    ymin = seg_ymin, ymax = seg_ymax, 
-                    fill = Trips)) +
-      scale_fill_gradient(low = "#a8c8e8", high = "#08519c", name = "Daily Trips") +
-      scale_x_continuous(
-        breaks = node_labels$node_order,
-        labels = node_labels$label
-      ) +
-      scale_y_continuous(labels = abs) +
-      labs(
-        title = paste0("Inbound Trips by Segment: ", input$day_selection, " during ", input$time_selection),
-        x = NULL,
-        y = "Trips"
-      ) +
-      theme_minimal() +
-      theme(
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        panel.grid.minor = element_blank()
-      )
-    
-    ggplotly(inbound_bandwidth_small_plot) %>%
-      layout(font = list(family = "Georgia"))
-  })
-  
-  output$outbound_bandwidth_chart_small <- renderPlotly({
-    outbound_bandwidth_data_small <- trips_by_day_tables_small() %>%
-      filter(direction=="Outbound") %>%
-      arrange(o_node_order, d_node_order) %>%
-      select(c(o_node_order, o_label, d_node_order, d_label, day_type, time_period, daily_trips))
-    
-    outbound_bandwidth_small <- outbound_bandwidth_data_small %>%
-      rowwise() %>%
-      mutate(
-        link_start_order = list(seq(d_node_order, o_node_order + 1))
-      ) %>%
-      unnest(link_start_order) %>%
-      mutate(
-        link_end_order = link_start_order - 1
-      ) %>%
-      group_by(link_start_order, link_end_order, day_type, time_period) %>%
-      summarise(Trips = round(sum(daily_trips),0), .groups = "drop")
-    
-    # Build a lookup from your data
-    node_lookup <- outbound_bandwidth_data_small %>%
-      select(node_order = o_node_order, label = o_label) %>%
-      bind_rows(outbound_bandwidth_data_small %>% select(node_order = d_node_order, label = d_label)) %>%
-      distinct()
-    
-    # Join labels onto the bandwidth result
-    outbound_bandwidth_small <- outbound_bandwidth_small %>%
-      left_join(node_lookup, by = c("link_start_order" = "node_order")) %>%
-      rename(start_label = label) %>%
-      left_join(node_lookup, by = c("link_end_order" = "node_order")) %>%
-      rename(end_label = label) %>%
-      select(link_start_order, start_label, link_end_order, end_label, 
-             day_type, time_period, Trips) %>%
-      filter(!is.na(start_label)) %>%
-      filter(!is.na(end_label))
-    
-    # plot_data_small <- outbound_bandwidth_small %>%
-    #   filter(day_type==input$day_selection & time_period==input$time_selection)
-    
-    if (is.null(input$time_selection) || length(input$time_selection) == 0 || input$time_selection == "All Day") {
-      plot_data_small <- outbound_bandwidth_small %>%
-        filter(day_type == input$day_selection) %>%
-        group_by(link_start_order, start_label, link_end_order, end_label, day_type) %>%
-        summarise(Trips = sum(Trips), .groups = "drop")
-    } else {
-      plot_data_small <- outbound_bandwidth_small %>%
-        filter(day_type == input$day_selection & time_period == input$time_selection)
-    }
-    
-    rect_data <- plot_data_small %>%
-      mutate(
-        seg_xmin = link_start_order,
-        seg_xmax = link_end_order,
-        seg_ymin = -Trips / 2,
-        seg_ymax = Trips / 2
-      )
-    
-    # Build node label lookup for x axis
-    node_labels <- outbound_bandwidth_small %>%
-      select(node_order = link_start_order, label = start_label) %>%
-      bind_rows(outbound_bandwidth_small %>% select(node_order = link_end_order, label = end_label)) %>%
-      distinct()
-    
-    outbound_bandwidth_small_plot <- ggplot(rect_data) +
-      geom_rect(aes(xmin = seg_xmin, xmax = seg_xmax, 
-                    ymin = seg_ymin, ymax = seg_ymax, 
-                    fill = Trips)) +
-      scale_fill_gradient(low = "#a8c8e8", high = "#08519c", name = "Daily Trips") +
-      scale_x_continuous(
-        breaks = node_labels$node_order,
-        labels = node_labels$label
-      ) +
-      scale_y_continuous(labels = abs) +
-      labs(
-        title = paste0("Outbound Trips by Segment: ", input$day_selection, " during ", input$time_selection),
-        x = NULL,
-        y = "Trips"
-      ) +
-      theme_minimal() +
-      theme(
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        panel.grid.minor = element_blank()
-      )
-    
-    ggplotly(outbound_bandwidth_small_plot) %>%
-      layout(font = list(family = "Georgia"))
-  })
-  
-  output$inbound_bandwidth_chart_large <- renderPlotly({
-    inbound_bandwidth_data_large <- trips_by_day_tables_large() %>%
-      filter(direction=="Inbound") %>%
-      arrange(o_node_order, d_node_order) %>%
-      select(c(o_node_order, o_label, d_node_order, d_label, day_type, time_period, daily_trips))
-    
-    inbound_bandwidth_large <- inbound_bandwidth_data_large %>%
-      rowwise() %>%
-      mutate(
-        link_start_order = list(seq(o_node_order, d_node_order - 1))
-      ) %>%
-      unnest(link_start_order) %>%
-      mutate(
-        link_end_order = link_start_order + 1
-      ) %>%
-      group_by(link_start_order, link_end_order, day_type, time_period) %>%
-      summarise(Trips = round(sum(daily_trips),0), .groups = "drop")
-    
-    # Build a lookup from your data
-    node_lookup <- inbound_bandwidth_data_large %>%
-      select(node_order = o_node_order, label = o_label) %>%
-      bind_rows(inbound_bandwidth_data_large %>% select(node_order = d_node_order, label = d_label)) %>%
-      distinct()
-    
-    # Join labels onto the bandwidth result
-    inbound_bandwidth_large <- inbound_bandwidth_large %>%
-      left_join(node_lookup, by = c("link_start_order" = "node_order")) %>%
-      rename(start_label = label) %>%
-      left_join(node_lookup, by = c("link_end_order" = "node_order")) %>%
-      rename(end_label = label) %>%
-      select(link_start_order, start_label, link_end_order, end_label, 
-             day_type, time_period, Trips)
-    
-    # plot_data_small <- inbound_bandwidth_small %>%
-    #   filter(day_type==input$day_selection & time_period==input$time_selection)
-    
-    if (is.null(input$time_selection) || length(input$time_selection) == 0 || input$time_selection == "All Day") {
-      plot_data_large <- inbound_bandwidth_large %>%
-        filter(day_type == input$day_selection) %>%
-        group_by(link_start_order, start_label, link_end_order, end_label, day_type) %>%
-        summarise(Trips = sum(Trips), .groups = "drop")
-    } else {
-      plot_data_large <- inbound_bandwidth_large %>%
-        filter(day_type == input$day_selection & time_period == input$time_selection)
-    }
-    
-    rect_data <- plot_data_large %>%
-      mutate(
-        seg_xmin = link_start_order,
-        seg_xmax = link_end_order,
-        seg_ymin = -Trips / 2,
-        seg_ymax = Trips / 2
-      )
-    
-    # Build node label lookup for x axis
-    node_labels <- inbound_bandwidth_large %>%
-      select(node_order = link_start_order, label = start_label) %>%
-      bind_rows(inbound_bandwidth_large %>% select(node_order = link_end_order, label = end_label)) %>%
-      distinct()
-    
-    inbound_bandwidth_large_plot <- ggplot(rect_data) +
-      geom_rect(aes(xmin = seg_xmin, xmax = seg_xmax, 
-                    ymin = seg_ymin, ymax = seg_ymax, 
-                    fill = Trips)) +
-      scale_fill_gradient(low = "#a8c8e8", high = "#08519c", name = "Daily Trips") +
-      scale_x_continuous(
-        breaks = node_labels$node_order,
-        labels = node_labels$label
-      ) +
-      scale_y_continuous(labels = abs) +
-      labs(
-        title = paste0("Inbound Trips by Segment: ", input$day_selection, " during ", input$time_selection),
-        x = NULL,
-        y = "Trips"
-      ) +
-      theme_minimal() +
-      theme(
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        panel.grid.minor = element_blank()
-      )
-    
-    ggplotly(inbound_bandwidth_large_plot) %>%
-      layout(font = list(family = "Georgia"))
-  })
-  
-  output$outbound_bandwidth_chart_large <- renderPlotly({
-    outbound_bandwidth_data_large <- trips_by_day_tables_large() %>%
-      filter(direction=="Outbound") %>%
-      arrange(o_node_order, d_node_order) %>%
-      select(c(o_node_order, o_label, d_node_order, d_label, day_type, time_period, daily_trips))
-    
-    outbound_bandwidth_large <- outbound_bandwidth_data_large %>%
-      rowwise() %>%
-      mutate(
-        link_start_order = list(seq(d_node_order, o_node_order + 1))
-      ) %>%
-      unnest(link_start_order) %>%
-      mutate(
-        link_end_order = link_start_order - 1
-      ) %>%
-      group_by(link_start_order, link_end_order, day_type, time_period) %>%
-      summarise(Trips = round(sum(daily_trips),0), .groups = "drop")
-    
-    # Build a lookup from your data
-    node_lookup <- outbound_bandwidth_data_large %>%
-      select(node_order = o_node_order, label = o_label) %>%
-      bind_rows(outbound_bandwidth_data_large %>% select(node_order = d_node_order, label = d_label)) %>%
-      distinct()
-    
-    # Join labels onto the bandwidth result
-    outbound_bandwidth_large <- outbound_bandwidth_large %>%
-      left_join(node_lookup, by = c("link_start_order" = "node_order")) %>%
-      rename(start_label = label) %>%
-      left_join(node_lookup, by = c("link_end_order" = "node_order")) %>%
-      rename(end_label = label) %>%
-      select(link_start_order, start_label, link_end_order, end_label, 
-             day_type, time_period, Trips) %>%
-      filter(!is.na(start_label)) %>%
-      filter(!is.na(end_label))
-    
-    # plot_data_small <- outbound_bandwidth_small %>%
-    #   filter(day_type==input$day_selection & time_period==input$time_selection)
-    
-    if (is.null(input$time_selection) || length(input$time_selection) == 0 || input$time_selection == "All Day") {
-      plot_data_large <- outbound_bandwidth_large %>%
-        filter(day_type == input$day_selection) %>%
-        group_by(link_start_order, start_label, link_end_order, end_label, day_type) %>%
-        summarise(Trips = sum(Trips), .groups = "drop")
-    } else {
-      plot_data_large <- outbound_bandwidth_large %>%
-        filter(day_type == input$day_selection & time_period == input$time_selection)
-    }
-    
-    rect_data <- plot_data_large %>%
-      mutate(
-        seg_xmin = link_start_order,
-        seg_xmax = link_end_order,
-        seg_ymin = -Trips / 2,
-        seg_ymax = Trips / 2
-      )
-    
-    # Build node label lookup for x axis
-    node_labels <- outbound_bandwidth_large %>%
-      select(node_order = link_start_order, label = start_label) %>%
-      bind_rows(outbound_bandwidth_large %>% select(node_order = link_end_order, label = end_label)) %>%
-      distinct()
-    
-    outbound_bandwidth_large_plot <- ggplot(rect_data) +
-      geom_rect(aes(xmin = seg_xmin, xmax = seg_xmax, 
-                    ymin = seg_ymin, ymax = seg_ymax, 
-                    fill = Trips)) +
-      scale_fill_gradient(low = "#a8c8e8", high = "#08519c", name = "Daily Trips") +
-      scale_x_continuous(
-        breaks = node_labels$node_order,
-        labels = node_labels$label
-      ) +
-      scale_y_continuous(labels = abs) +
-      labs(
-        title = paste0("Outbound Trips by Segment: ", input$day_selection, " during ", input$time_selection),
-        x = NULL,
-        y = "Trips"
-      ) +
-      theme_minimal() +
-      theme(
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        panel.grid.minor = element_blank()
-      )
-    
-    ggplotly(outbound_bandwidth_large_plot) %>%
-      layout(font = list(family = "Georgia")) %>% browser()
-  })
+  # output$inbound_bandwidth_chart_small <- renderPlotly({
+  #   inbound_bandwidth_data_small <- trips_by_day_tables_small() %>%
+  #     filter(direction=="Inbound") %>%
+  #     arrange(o_node_order, d_node_order) %>%
+  #     select(c(o_node_order, o_label, d_node_order, d_label, day_type, time_period, daily_trips))
+  #   
+  #   inbound_bandwidth_small <- inbound_bandwidth_data_small %>%
+  #     rowwise() %>%
+  #     mutate(
+  #       link_start_order = list(seq(o_node_order, d_node_order - 1))
+  #     ) %>%
+  #     unnest(link_start_order) %>%
+  #     mutate(
+  #       link_end_order = link_start_order + 1
+  #     ) %>%
+  #     group_by(link_start_order, link_end_order, day_type, time_period) %>%
+  #     summarise(Trips = round(sum(daily_trips),0), .groups = "drop")
+  #   
+  #   # Build a lookup from your data
+  #   node_lookup <- inbound_bandwidth_data_small %>%
+  #     select(node_order = o_node_order, label = o_label) %>%
+  #     bind_rows(inbound_bandwidth_data_small %>% select(node_order = d_node_order, label = d_label)) %>%
+  #     distinct()
+  #   
+  #   # Join labels onto the bandwidth result
+  #   inbound_bandwidth_small <- inbound_bandwidth_small %>%
+  #     left_join(node_lookup, by = c("link_start_order" = "node_order")) %>%
+  #     rename(start_label = label) %>%
+  #     left_join(node_lookup, by = c("link_end_order" = "node_order")) %>%
+  #     rename(end_label = label) %>%
+  #     select(link_start_order, start_label, link_end_order, end_label, 
+  #            day_type, time_period, Trips)
+  #   
+  #   # plot_data_small <- inbound_bandwidth_small %>%
+  #   #   filter(day_type==input$day_selection & time_period==input$time_selection)
+  #   
+  #   if (is.null(input$time_selection) || length(input$time_selection) == 0 || input$time_selection == "All Day") {
+  #     plot_data_small <- inbound_bandwidth_small %>%
+  #       filter(day_type == input$day_selection) %>%
+  #       group_by(link_start_order, start_label, link_end_order, end_label, day_type) %>%
+  #       summarise(Trips = sum(Trips), .groups = "drop")
+  #   } else {
+  #     plot_data_small <- inbound_bandwidth_small %>%
+  #       filter(day_type == input$day_selection & time_period == input$time_selection)
+  #   }
+  #   
+  #   rect_data <- plot_data_small %>%
+  #     mutate(
+  #       seg_xmin = link_start_order,
+  #       seg_xmax = link_end_order,
+  #       seg_ymin = -Trips / 2,
+  #       seg_ymax = Trips / 2
+  #     )
+  #   
+  #   # Build node label lookup for x axis
+  #   node_labels <- inbound_bandwidth_small %>%
+  #     select(node_order = link_start_order, label = start_label) %>%
+  #     bind_rows(inbound_bandwidth_small %>% select(node_order = link_end_order, label = end_label)) %>%
+  #     distinct()
+  #   
+  #   inbound_bandwidth_small_plot <- ggplot(rect_data) +
+  #     geom_rect(aes(xmin = seg_xmin, xmax = seg_xmax, 
+  #                   ymin = seg_ymin, ymax = seg_ymax, 
+  #                   fill = Trips)) +
+  #     scale_fill_gradient(low = "#a8c8e8", high = "#08519c", name = "Daily Trips") +
+  #     scale_x_continuous(
+  #       breaks = node_labels$node_order,
+  #       labels = node_labels$label
+  #     ) +
+  #     scale_y_continuous(labels = abs) +
+  #     labs(
+  #       title = paste0("Inbound Trips by Segment: ", input$day_selection, " during ", input$time_selection),
+  #       x = NULL,
+  #       y = "Trips"
+  #     ) +
+  #     theme_minimal() +
+  #     theme(
+  #       axis.text.x = element_text(angle = 45, hjust = 1),
+  #       panel.grid.minor = element_blank()
+  #     )
+  #   
+  #   ggplotly(inbound_bandwidth_small_plot) %>%
+  #     layout(font = list(family = "Georgia"))
+  # })
+  # 
+  # output$outbound_bandwidth_chart_small <- renderPlotly({
+  #   outbound_bandwidth_data_small <- trips_by_day_tables_small() %>%
+  #     filter(direction=="Outbound") %>%
+  #     arrange(o_node_order, d_node_order) %>%
+  #     select(c(o_node_order, o_label, d_node_order, d_label, day_type, time_period, daily_trips))
+  #   
+  #   outbound_bandwidth_small <- outbound_bandwidth_data_small %>%
+  #     rowwise() %>%
+  #     mutate(
+  #       link_start_order = list(seq(d_node_order, o_node_order + 1))
+  #     ) %>%
+  #     unnest(link_start_order) %>%
+  #     mutate(
+  #       link_end_order = link_start_order - 1
+  #     ) %>%
+  #     group_by(link_start_order, link_end_order, day_type, time_period) %>%
+  #     summarise(Trips = round(sum(daily_trips),0), .groups = "drop")
+  #   
+  #   # Build a lookup from your data
+  #   node_lookup <- outbound_bandwidth_data_small %>%
+  #     select(node_order = o_node_order, label = o_label) %>%
+  #     bind_rows(outbound_bandwidth_data_small %>% select(node_order = d_node_order, label = d_label)) %>%
+  #     distinct()
+  #   
+  #   # Join labels onto the bandwidth result
+  #   outbound_bandwidth_small <- outbound_bandwidth_small %>%
+  #     left_join(node_lookup, by = c("link_start_order" = "node_order")) %>%
+  #     rename(start_label = label) %>%
+  #     left_join(node_lookup, by = c("link_end_order" = "node_order")) %>%
+  #     rename(end_label = label) %>%
+  #     select(link_start_order, start_label, link_end_order, end_label, 
+  #            day_type, time_period, Trips) %>%
+  #     filter(!is.na(start_label)) %>%
+  #     filter(!is.na(end_label))
+  #   
+  #   # plot_data_small <- outbound_bandwidth_small %>%
+  #   #   filter(day_type==input$day_selection & time_period==input$time_selection)
+  #   
+  #   if (is.null(input$time_selection) || length(input$time_selection) == 0 || input$time_selection == "All Day") {
+  #     plot_data_small <- outbound_bandwidth_small %>%
+  #       filter(day_type == input$day_selection) %>%
+  #       group_by(link_start_order, start_label, link_end_order, end_label, day_type) %>%
+  #       summarise(Trips = sum(Trips), .groups = "drop")
+  #   } else {
+  #     plot_data_small <- outbound_bandwidth_small %>%
+  #       filter(day_type == input$day_selection & time_period == input$time_selection)
+  #   }
+  #   
+  #   rect_data <- plot_data_small %>%
+  #     mutate(
+  #       seg_xmin = link_start_order,
+  #       seg_xmax = link_end_order,
+  #       seg_ymin = -Trips / 2,
+  #       seg_ymax = Trips / 2
+  #     )
+  #   
+  #   # Build node label lookup for x axis
+  #   node_labels <- outbound_bandwidth_small %>%
+  #     select(node_order = link_start_order, label = start_label) %>%
+  #     bind_rows(outbound_bandwidth_small %>% select(node_order = link_end_order, label = end_label)) %>%
+  #     distinct()
+  #   
+  #   outbound_bandwidth_small_plot <- ggplot(rect_data) +
+  #     geom_rect(aes(xmin = seg_xmin, xmax = seg_xmax, 
+  #                   ymin = seg_ymin, ymax = seg_ymax, 
+  #                   fill = Trips)) +
+  #     scale_fill_gradient(low = "#a8c8e8", high = "#08519c", name = "Daily Trips") +
+  #     scale_x_continuous(
+  #       breaks = node_labels$node_order,
+  #       labels = node_labels$label
+  #     ) +
+  #     scale_y_continuous(labels = abs) +
+  #     labs(
+  #       title = paste0("Outbound Trips by Segment: ", input$day_selection, " during ", input$time_selection),
+  #       x = NULL,
+  #       y = "Trips"
+  #     ) +
+  #     theme_minimal() +
+  #     theme(
+  #       axis.text.x = element_text(angle = 45, hjust = 1),
+  #       panel.grid.minor = element_blank()
+  #     )
+  #   
+  #   ggplotly(outbound_bandwidth_small_plot) %>%
+  #     layout(font = list(family = "Georgia"))
+  # })
+  # 
+  # output$inbound_bandwidth_chart_large <- renderPlotly({
+  #   inbound_bandwidth_data_large <- trips_by_day_tables_large() %>%
+  #     filter(direction=="Inbound") %>%
+  #     arrange(o_node_order, d_node_order) %>%
+  #     select(c(o_node_order, o_label, d_node_order, d_label, day_type, time_period, daily_trips))
+  #   
+  #   inbound_bandwidth_large <- inbound_bandwidth_data_large %>%
+  #     rowwise() %>%
+  #     mutate(
+  #       link_start_order = list(seq(o_node_order, d_node_order - 1))
+  #     ) %>%
+  #     unnest(link_start_order) %>%
+  #     mutate(
+  #       link_end_order = link_start_order + 1
+  #     ) %>%
+  #     group_by(link_start_order, link_end_order, day_type, time_period) %>%
+  #     summarise(Trips = round(sum(daily_trips),0), .groups = "drop")
+  #   
+  #   # Build a lookup from your data
+  #   node_lookup <- inbound_bandwidth_data_large %>%
+  #     select(node_order = o_node_order, label = o_label) %>%
+  #     bind_rows(inbound_bandwidth_data_large %>% select(node_order = d_node_order, label = d_label)) %>%
+  #     distinct()
+  #   
+  #   # Join labels onto the bandwidth result
+  #   inbound_bandwidth_large <- inbound_bandwidth_large %>%
+  #     left_join(node_lookup, by = c("link_start_order" = "node_order")) %>%
+  #     rename(start_label = label) %>%
+  #     left_join(node_lookup, by = c("link_end_order" = "node_order")) %>%
+  #     rename(end_label = label) %>%
+  #     select(link_start_order, start_label, link_end_order, end_label, 
+  #            day_type, time_period, Trips)
+  #   
+  #   # plot_data_small <- inbound_bandwidth_small %>%
+  #   #   filter(day_type==input$day_selection & time_period==input$time_selection)
+  #   
+  #   if (is.null(input$time_selection) || length(input$time_selection) == 0 || input$time_selection == "All Day") {
+  #     plot_data_large <- inbound_bandwidth_large %>%
+  #       filter(day_type == input$day_selection) %>%
+  #       group_by(link_start_order, start_label, link_end_order, end_label, day_type) %>%
+  #       summarise(Trips = sum(Trips), .groups = "drop")
+  #   } else {
+  #     plot_data_large <- inbound_bandwidth_large %>%
+  #       filter(day_type == input$day_selection & time_period == input$time_selection)
+  #   }
+  #   
+  #   rect_data <- plot_data_large %>%
+  #     mutate(
+  #       seg_xmin = link_start_order,
+  #       seg_xmax = link_end_order,
+  #       seg_ymin = -Trips / 2,
+  #       seg_ymax = Trips / 2
+  #     )
+  #   
+  #   # Build node label lookup for x axis
+  #   node_labels <- inbound_bandwidth_large %>%
+  #     select(node_order = link_start_order, label = start_label) %>%
+  #     bind_rows(inbound_bandwidth_large %>% select(node_order = link_end_order, label = end_label)) %>%
+  #     distinct()
+  #   
+  #   inbound_bandwidth_large_plot <- ggplot(rect_data) +
+  #     geom_rect(aes(xmin = seg_xmin, xmax = seg_xmax, 
+  #                   ymin = seg_ymin, ymax = seg_ymax, 
+  #                   fill = Trips)) +
+  #     scale_fill_gradient(low = "#a8c8e8", high = "#08519c", name = "Daily Trips") +
+  #     scale_x_continuous(
+  #       breaks = node_labels$node_order,
+  #       labels = node_labels$label
+  #     ) +
+  #     scale_y_continuous(labels = abs) +
+  #     labs(
+  #       title = paste0("Inbound Trips by Segment: ", input$day_selection, " during ", input$time_selection),
+  #       x = NULL,
+  #       y = "Trips"
+  #     ) +
+  #     theme_minimal() +
+  #     theme(
+  #       axis.text.x = element_text(angle = 45, hjust = 1),
+  #       panel.grid.minor = element_blank()
+  #     )
+  #   
+  #   ggplotly(inbound_bandwidth_large_plot) %>%
+  #     layout(font = list(family = "Georgia"))
+  # })
+  # 
+  # output$outbound_bandwidth_chart_large <- renderPlotly({
+  #   outbound_bandwidth_data_large <- trips_by_day_tables_large() %>%
+  #     filter(direction=="Outbound") %>%
+  #     arrange(o_node_order, d_node_order) %>%
+  #     select(c(o_node_order, o_label, d_node_order, d_label, day_type, time_period, daily_trips))
+  #   
+  #   outbound_bandwidth_large <- outbound_bandwidth_data_large %>%
+  #     rowwise() %>%
+  #     mutate(
+  #       link_start_order = list(seq(d_node_order, o_node_order + 1))
+  #     ) %>%
+  #     unnest(link_start_order) %>%
+  #     mutate(
+  #       link_end_order = link_start_order - 1
+  #     ) %>%
+  #     group_by(link_start_order, link_end_order, day_type, time_period) %>%
+  #     summarise(Trips = round(sum(daily_trips),0), .groups = "drop")
+  #   
+  #   # Build a lookup from your data
+  #   node_lookup <- outbound_bandwidth_data_large %>%
+  #     select(node_order = o_node_order, label = o_label) %>%
+  #     bind_rows(outbound_bandwidth_data_large %>% select(node_order = d_node_order, label = d_label)) %>%
+  #     distinct()
+  #   
+  #   # Join labels onto the bandwidth result
+  #   outbound_bandwidth_large <- outbound_bandwidth_large %>%
+  #     left_join(node_lookup, by = c("link_start_order" = "node_order")) %>%
+  #     rename(start_label = label) %>%
+  #     left_join(node_lookup, by = c("link_end_order" = "node_order")) %>%
+  #     rename(end_label = label) %>%
+  #     select(link_start_order, start_label, link_end_order, end_label, 
+  #            day_type, time_period, Trips) %>%
+  #     filter(!is.na(start_label)) %>%
+  #     filter(!is.na(end_label))
+  #   
+  #   # plot_data_small <- outbound_bandwidth_small %>%
+  #   #   filter(day_type==input$day_selection & time_period==input$time_selection)
+  #   
+  #   if (is.null(input$time_selection) || length(input$time_selection) == 0 || input$time_selection == "All Day") {
+  #     plot_data_large <- outbound_bandwidth_large %>%
+  #       filter(day_type == input$day_selection) %>%
+  #       group_by(link_start_order, start_label, link_end_order, end_label, day_type) %>%
+  #       summarise(Trips = sum(Trips), .groups = "drop")
+  #   } else {
+  #     plot_data_large <- outbound_bandwidth_large %>%
+  #       filter(day_type == input$day_selection & time_period == input$time_selection)
+  #   }
+  #   
+  #   rect_data <- plot_data_large %>%
+  #     mutate(
+  #       seg_xmin = link_start_order,
+  #       seg_xmax = link_end_order,
+  #       seg_ymin = -Trips / 2,
+  #       seg_ymax = Trips / 2
+  #     )
+  #   
+  #   # Build node label lookup for x axis
+  #   node_labels <- outbound_bandwidth_large %>%
+  #     select(node_order = link_start_order, label = start_label) %>%
+  #     bind_rows(outbound_bandwidth_large %>% select(node_order = link_end_order, label = end_label)) %>%
+  #     distinct()
+  #   
+  #   outbound_bandwidth_large_plot <- ggplot(rect_data) +
+  #     geom_rect(aes(xmin = seg_xmin, xmax = seg_xmax, 
+  #                   ymin = seg_ymin, ymax = seg_ymax, 
+  #                   fill = Trips)) +
+  #     scale_fill_gradient(low = "#a8c8e8", high = "#08519c", name = "Daily Trips") +
+  #     scale_x_continuous(
+  #       breaks = node_labels$node_order,
+  #       labels = node_labels$label
+  #     ) +
+  #     scale_y_continuous(labels = abs) +
+  #     labs(
+  #       title = paste0("Outbound Trips by Segment: ", input$day_selection, " during ", input$time_selection),
+  #       x = NULL,
+  #       y = "Trips"
+  #     ) +
+  #     theme_minimal() +
+  #     theme(
+  #       axis.text.x = element_text(angle = 45, hjust = 1),
+  #       panel.grid.minor = element_blank()
+  #     )
+  #   
+  #   ggplotly(outbound_bandwidth_large_plot) %>%
+  #    layout(font = list(family = "Georgia")) #%>% browser()
+  # })
 }
 
 shinyApp(ui, server)
