@@ -727,7 +727,7 @@ server <- function(input, output, session) {
     coords <- st_coordinates(arrange(filtered_data(), order))
     
     leafletProxy("nodes_map") %>%
-      clearGroup("Selected Nodes") %>%
+      clearGroup("Nodes (Three Mile Travel Market)") %>%
       clearGroup("Selected Route") %>%
       clearGroup("Unselected Nodes") %>%
       clearGroup("Catchment Block Groups") %>%
